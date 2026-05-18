@@ -20,6 +20,7 @@
 *.mdb
 *.opendb
 *.VC.db
+*.lscache
 
 # Visual Studio / Rider / VS Code
 .vs/

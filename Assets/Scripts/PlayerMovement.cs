@@ -108,10 +108,10 @@ public class PlayerMovement : MonoBehaviour
 
         inputVector = Vector2.zero;
 
-        if (Keyboard.current.wKey.isPressed) inputVector.y = 1;
-        if (Keyboard.current.sKey.isPressed) inputVector.y = -1;
-        if (Keyboard.current.aKey.isPressed) inputVector.x = -1;
-        if (Keyboard.current.dKey.isPressed) inputVector.x = 1;
+        if (Keyboard.current.dKey.isPressed) inputVector.y = 1;
+        if (Keyboard.current.aKey.isPressed) inputVector.y = -1;
+        if (Keyboard.current.wKey.isPressed) inputVector.x = -1;
+        if (Keyboard.current.sKey.isPressed) inputVector.x = 1;
 
         if (Keyboard.current.spaceKey.wasPressedThisFrame)
         {
