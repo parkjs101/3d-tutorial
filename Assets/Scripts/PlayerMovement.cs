@@ -42,6 +42,7 @@ public class PlayerMovement : MonoBehaviour
     private PushPullBox currentBox;
 
     public PlayerState CurrentState { get; private set; } = PlayerState.Idle;
+    public Vector3 CurrentMoveDirection { get; private set; } = Vector3.zero;
 
     void Start()
     {
@@ -66,6 +67,7 @@ public class PlayerMovement : MonoBehaviour
     {
         if (rb == null || isDead)
         {
+            CurrentMoveDirection = Vector3.zero;
             return;
         }
 
@@ -129,6 +131,7 @@ public class PlayerMovement : MonoBehaviour
         SetClimbMode(false);
 
         Vector3 moveDirection = GetMoveDirection();
+        CurrentMoveDirection = moveDirection;
         Vector3 platformVelocity = currentPlatform != null ? currentPlatform.Velocity : Vector3.zero;
 
         rb.linearVelocity = new Vector3(
@@ -137,7 +140,8 @@ public class PlayerMovement : MonoBehaviour
             moveDirection.z * moveSpeed + platformVelocity.z
         );
 
-        UpdateLocomotionState(isGrounded, moveDirection);
+        bool groundedForState = isGrounded && rb.linearVelocity.y <= 0.1f;
+        UpdateLocomotionState(groundedForState, moveDirection);
     }
 
     void HandleJump(bool isGrounded)
@@ -181,6 +185,7 @@ public class PlayerMovement : MonoBehaviour
         }
 
         Vector3 moveDirection = GetMoveDirection();
+        CurrentMoveDirection = moveDirection;
         Vector3 moveVelocity = moveDirection * pushPullSpeed;
         Vector3 platformVelocity = currentPlatform != null ? currentPlatform.Velocity : Vector3.zero;
 
@@ -198,12 +203,14 @@ public class PlayerMovement : MonoBehaviour
     {
         if (!TryGetWallHit(out Vector3 wallDirection))
         {
+            CurrentMoveDirection = Vector3.zero;
             SetClimbMode(false);
             return false;
         }
 
         if (isGrounded && inputVector.y < -0.01f)
         {
+            CurrentMoveDirection = Vector3.zero;
             SetClimbMode(false);
             return false;
         }
@@ -215,12 +222,14 @@ public class PlayerMovement : MonoBehaviour
 
         if (Mathf.Abs(inputVector.y) <= 0.01f)
         {
+            CurrentMoveDirection = Vector3.zero;
             SetClimbMode(false);
             CurrentState = rb.linearVelocity.y > 0.1f ? PlayerState.Jump : PlayerState.Fall;
             return false;
         }
 
         ReleaseBox();
+        CurrentMoveDirection = new Vector3(inputVector.x, 0f, 0f);
         SetClimbMode(true);
         rb.linearVelocity = new Vector3(inputVector.x * moveSpeed, inputVector.y * climbSpeed, 0f);
         CurrentState = PlayerState.Climb;
@@ -375,6 +384,7 @@ public class PlayerMovement : MonoBehaviour
         isDead = false;
         SetClimbMode(false);
         inputVector = Vector2.zero;
+        CurrentMoveDirection = Vector3.zero;
         jumpRequested = false;
         interactRequested = false;
         ReleaseBox();
