@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using UnityEngine;
 
 public class PlayerAnimatorBridge : MonoBehaviour
@@ -9,12 +10,15 @@ public class PlayerAnimatorBridge : MonoBehaviour
     [SerializeField] private float rotationSharpness = 12f;
 
     private Transform visualRoot;
+    private readonly HashSet<int> availableAnimatorParameters = new HashSet<int>();
 
     private static readonly int SpeedHash = Animator.StringToHash("Speed");
     private static readonly int MotionSpeedHash = Animator.StringToHash("MotionSpeed");
     private static readonly int JumpHash = Animator.StringToHash("Jump");
     private static readonly int GroundedHash = Animator.StringToHash("Grounded");
     private static readonly int FreeFallHash = Animator.StringToHash("FreeFall");
+    private static readonly int CrouchHash = Animator.StringToHash("Crouch");
+    private static readonly int CrouchSpeedHash = Animator.StringToHash("CrouchSpeed");
 
     void Awake()
     {
@@ -36,6 +40,7 @@ public class PlayerAnimatorBridge : MonoBehaviour
         if (animator != null)
         {
             visualRoot = animator.transform;
+            CacheAnimatorParameters();
         }
     }
 
@@ -50,15 +55,57 @@ public class PlayerAnimatorBridge : MonoBehaviour
         float horizontalSpeed = GetHorizontalSpeed();
         bool grounded = state == PlayerState.Idle ||
                         state == PlayerState.Walk ||
+                        state == PlayerState.CrouchIdle ||
+                        state == PlayerState.CrouchWalk ||
                         state == PlayerState.PushPull;
+        bool crouching = state == PlayerState.CrouchIdle || state == PlayerState.CrouchWalk;
+        float crouchSpeed = state == PlayerState.CrouchWalk ? Mathf.Max(horizontalSpeed, walkSpeedThreshold) : 0f;
 
-        animator.SetFloat(SpeedHash, state == PlayerState.Walk ? Mathf.Max(horizontalSpeed, walkSpeedThreshold) : 0f);
-        animator.SetFloat(MotionSpeedHash, 1f);
-        animator.SetBool(JumpHash, state == PlayerState.Jump);
-        animator.SetBool(GroundedHash, grounded);
-        animator.SetBool(FreeFallHash, state == PlayerState.Fall);
+        SetFloatIfAvailable(SpeedHash, IsMovingState(state) ? Mathf.Max(horizontalSpeed, walkSpeedThreshold) : 0f);
+        SetFloatIfAvailable(MotionSpeedHash, 1f);
+        SetBoolIfAvailable(JumpHash, state == PlayerState.Jump);
+        SetBoolIfAvailable(GroundedHash, grounded);
+        SetBoolIfAvailable(FreeFallHash, state == PlayerState.Fall);
+        SetBoolIfAvailable(CrouchHash, crouching);
+        SetFloatIfAvailable(CrouchSpeedHash, crouchSpeed);
 
         RotateVisualTowardMovement();
+    }
+
+    private void CacheAnimatorParameters()
+    {
+        availableAnimatorParameters.Clear();
+
+        foreach (AnimatorControllerParameter parameter in animator.parameters)
+        {
+            availableAnimatorParameters.Add(parameter.nameHash);
+        }
+    }
+
+    private bool HasParameter(int parameterHash)
+    {
+        return availableAnimatorParameters.Contains(parameterHash);
+    }
+
+    private void SetFloatIfAvailable(int parameterHash, float value)
+    {
+        if (HasParameter(parameterHash))
+        {
+            animator.SetFloat(parameterHash, value);
+        }
+    }
+
+    private void SetBoolIfAvailable(int parameterHash, bool value)
+    {
+        if (HasParameter(parameterHash))
+        {
+            animator.SetBool(parameterHash, value);
+        }
+    }
+
+    private bool IsMovingState(PlayerState state)
+    {
+        return state == PlayerState.Walk || state == PlayerState.CrouchWalk;
     }
 
     private float GetHorizontalSpeed()

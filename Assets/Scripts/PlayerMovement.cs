@@ -6,6 +6,8 @@ public enum PlayerState
 {
     Idle,
     Walk,
+    CrouchIdle,
+    CrouchWalk,
     Jump,
     Fall,
     PushPull,
@@ -17,6 +19,7 @@ public class PlayerMovement : MonoBehaviour
     [Header("Movement")]
     public float moveSpeed = 2f;
     [SerializeField] private float sprintSpeed = 4f;
+    [SerializeField] private float crouchSpeed = 1f;
     public float jumpForce = 3.5f;
     [SerializeField] private float pushPullSpeed = 2f;
 
@@ -29,6 +32,7 @@ public class PlayerMovement : MonoBehaviour
     private Rigidbody rb;
     private Vector2 inputVector;
     private bool sprintHeld;
+    private bool crouchToggled;
     private bool jumpRequested;
     private bool interactRequested;
     private bool jumpAnimationActive;
@@ -42,6 +46,7 @@ public class PlayerMovement : MonoBehaviour
     public PlayerState CurrentState { get; private set; } = PlayerState.Idle;
     public Vector3 CurrentMoveDirection { get; private set; } = Vector3.zero;
     public bool IsOnStairs => stairContacts.Count > 0;
+    public bool IsCrouching => crouchToggled;
 
     void Start()
     {
@@ -117,6 +122,10 @@ public class PlayerMovement : MonoBehaviour
 
         sprintHeld = Keyboard.current.leftShiftKey.isPressed || Keyboard.current.rightShiftKey.isPressed;
 
+        if (Keyboard.current.leftCtrlKey.wasPressedThisFrame || Keyboard.current.rightCtrlKey.wasPressedThisFrame)
+        {
+            crouchToggled = !crouchToggled;
+        }
 
         if (Keyboard.current.spaceKey.wasPressedThisFrame)
         {
@@ -134,7 +143,7 @@ public class PlayerMovement : MonoBehaviour
         Vector3 moveDirection = GetMoveDirection();
         CurrentMoveDirection = moveDirection;
         Vector3 platformVelocity = currentPlatform != null ? currentPlatform.Velocity : Vector3.zero;
-        float activeMoveSpeed = sprintHeld && moveDirection.sqrMagnitude > 0.01f ? sprintSpeed : moveSpeed;
+        float activeMoveSpeed = GetActiveMoveSpeed(moveDirection);
 
         rb.linearVelocity = new Vector3(
             moveDirection.x * activeMoveSpeed + platformVelocity.x,
@@ -150,7 +159,7 @@ public class PlayerMovement : MonoBehaviour
     {
         jumpRequested = false;
 
-        if (!isGrounded)
+        if (!isGrounded || crouchToggled)
         {
             return;
         }
@@ -219,10 +228,24 @@ public class PlayerMovement : MonoBehaviour
             return;
         }
 
+        if (crouchToggled)
+        {
+            CurrentState = moveDirection.sqrMagnitude > 0.01f ? PlayerState.CrouchWalk : PlayerState.CrouchIdle;
+            return;
+        }
 
         CurrentState = moveDirection.sqrMagnitude > 0.01f ? PlayerState.Walk : PlayerState.Idle;
     }
 
+    float GetActiveMoveSpeed(Vector3 moveDirection)
+    {
+        if (crouchToggled)
+        {
+            return crouchSpeed;
+        }
+
+        return sprintHeld && moveDirection.sqrMagnitude > 0.01f ? sprintSpeed : moveSpeed;
+    }
 
     Vector3 GetMoveDirection()
     {
@@ -357,6 +380,7 @@ public class PlayerMovement : MonoBehaviour
         inputVector = Vector2.zero;
         CurrentMoveDirection = Vector3.zero;
         sprintHeld = false;
+        crouchToggled = false;
         jumpRequested = false;
         interactRequested = false;
         jumpAnimationActive = false;
