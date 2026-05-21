@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.InputSystem;
 
@@ -36,9 +37,11 @@ public class PlayerMovement : MonoBehaviour
     private WaypointFollower currentPlatform;
     private PushPullBox currentBox;
     private Door highlightedDoor;
+    private readonly HashSet<Collider> stairContacts = new HashSet<Collider>();
 
     public PlayerState CurrentState { get; private set; } = PlayerState.Idle;
     public Vector3 CurrentMoveDirection { get; private set; } = Vector3.zero;
+    public bool IsOnStairs => stairContacts.Count > 0;
 
     void Start()
     {
@@ -113,6 +116,7 @@ public class PlayerMovement : MonoBehaviour
         if (Keyboard.current.sKey.isPressed) inputVector.x = 1;
 
         sprintHeld = Keyboard.current.leftShiftKey.isPressed || Keyboard.current.rightShiftKey.isPressed;
+
 
         if (Keyboard.current.spaceKey.wasPressedThisFrame)
         {
@@ -215,8 +219,10 @@ public class PlayerMovement : MonoBehaviour
             return;
         }
 
+
         CurrentState = moveDirection.sqrMagnitude > 0.01f ? PlayerState.Walk : PlayerState.Idle;
     }
+
 
     Vector3 GetMoveDirection()
     {
@@ -355,6 +361,7 @@ public class PlayerMovement : MonoBehaviour
         interactRequested = false;
         jumpAnimationActive = false;
         hasWalkableContact = false;
+        stairContacts.Clear();
         ReleaseBox();
         CurrentState = PlayerState.Idle;
     }
@@ -373,11 +380,17 @@ public class PlayerMovement : MonoBehaviour
         {
             currentPlatform = platform;
         }
+
+        if (IsStairCollider(collision.collider))
+        {
+            stairContacts.Add(collision.collider);
+        }
     }
 
     void OnCollisionExit(Collision collision)
     {
         hasWalkableContact = false;
+        stairContacts.Remove(collision.collider);
 
         WaypointFollower platform = collision.collider.GetComponentInParent<WaypointFollower>();
         if (platform == currentPlatform)
@@ -394,6 +407,22 @@ public class PlayerMovement : MonoBehaviour
             {
                 return true;
             }
+        }
+
+        return false;
+    }
+
+    bool IsStairCollider(Collider collider)
+    {
+        Transform current = collider.transform;
+        while (current != null)
+        {
+            if (current.name.IndexOf("stair", System.StringComparison.OrdinalIgnoreCase) >= 0)
+            {
+                return true;
+            }
+
+            current = current.parent;
         }
 
         return false;

@@ -5,13 +5,17 @@ public class LittleNightmareSideCamera : MonoBehaviour
 {
     [SerializeField] private Transform target;
     [SerializeField] private Vector3 offset = new Vector3(6f, 4f, -10f);
+    [SerializeField] private float stairsOffsetX = 12f;
     [SerializeField] private Vector3 lookAtOffset = new Vector3(0f, 1f, 0f);
     [SerializeField] private float followSharpness = 8f;
+    [SerializeField] private float offsetTransitionSharpness = 4f;
     [SerializeField] private float lookAroundDistance = 2f;
     [SerializeField] private float verticalLookAroundDistance = 2f;
     [SerializeField] private float cameraLookAroundShift = 1f;
     [SerializeField] private float lookAroundSharpness = 10f;
 
+    private PlayerMovement playerMovement;
+    private Vector3 currentBaseOffset;
     private Vector3 currentLookAroundOffset;
     private Vector3 currentCameraLookAroundOffset;
 
@@ -25,6 +29,13 @@ public class LittleNightmareSideCamera : MonoBehaviour
                 target = player.transform;
             }
         }
+
+        if (target != null)
+        {
+            playerMovement = target.GetComponent<PlayerMovement>();
+        }
+
+        currentBaseOffset = offset;
     }
 
     void LateUpdate()
@@ -35,8 +46,9 @@ public class LittleNightmareSideCamera : MonoBehaviour
         }
 
         UpdateLookAroundOffset();
+        UpdateBaseOffset();
 
-        Vector3 desiredPosition = target.position + offset + currentCameraLookAroundOffset;
+        Vector3 desiredPosition = target.position + currentBaseOffset + currentCameraLookAroundOffset;
         float followT = 1f - Mathf.Exp(-followSharpness * Time.deltaTime);
         transform.position = Vector3.Lerp(transform.position, desiredPosition, followT);
 
@@ -96,5 +108,17 @@ public class LittleNightmareSideCamera : MonoBehaviour
         float lookT = 1f - Mathf.Exp(-lookAroundSharpness * Time.deltaTime);
         currentLookAroundOffset = Vector3.Lerp(currentLookAroundOffset, targetLookAroundOffset, lookT);
         currentCameraLookAroundOffset = Vector3.Lerp(currentCameraLookAroundOffset, targetCameraLookAroundOffset, lookT);
+    }
+
+    void UpdateBaseOffset()
+    {
+        Vector3 targetOffset = offset;
+        if (playerMovement != null && playerMovement.IsOnStairs)
+        {
+            targetOffset.x = stairsOffsetX;
+        }
+
+        float offsetT = 1f - Mathf.Exp(-offsetTransitionSharpness * Time.deltaTime);
+        currentBaseOffset = Vector3.Lerp(currentBaseOffset, targetOffset, offsetT);
     }
 }
