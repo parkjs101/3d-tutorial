@@ -2586,6 +2586,8 @@ MonoBehaviour:
   crouchColliderHeight: 1.2
   crouchColliderCenterY: -0.4
   crouchColliderSharpness: 12
+  crouchLockFloorName: Floor (6)
+  crouchLockBoundsPadding: 0.25
 --- !u!54 &1433940114
 Rigidbody:
   m_ObjectHideFlags: 0

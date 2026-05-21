@@ -34,8 +34,13 @@ public class PlayerMovement : MonoBehaviour
     [SerializeField] private float crouchColliderCenterY = -0.4f;
     [SerializeField] private float crouchColliderSharpness = 12f;
 
+    [Header("Crouch Lock")]
+    [SerializeField] private string crouchLockFloorName = "Floor (6)";
+    [SerializeField] private float crouchLockBoundsPadding = 0.25f;
+
     private Rigidbody rb;
     private CapsuleCollider capsuleCollider;
+    private Bounds? crouchLockFloorBounds;
     private float standingColliderHeight;
     private Vector3 standingColliderCenter;
     private Vector2 inputVector;
@@ -74,6 +79,8 @@ public class PlayerMovement : MonoBehaviour
             standingColliderHeight = capsuleCollider.height;
             standingColliderCenter = capsuleCollider.center;
         }
+
+        CacheCrouchLockFloorBounds();
     }
 
     void Update()
@@ -142,7 +149,10 @@ public class PlayerMovement : MonoBehaviour
 
         if (Keyboard.current.leftCtrlKey.wasPressedThisFrame || Keyboard.current.rightCtrlKey.wasPressedThisFrame)
         {
-            crouchToggled = !crouchToggled;
+            if (!crouchToggled || !IsUnderCrouchLockFloor())
+            {
+                crouchToggled = !crouchToggled;
+            }
         }
 
         if (Keyboard.current.spaceKey.wasPressedThisFrame)
@@ -493,5 +503,50 @@ public class PlayerMovement : MonoBehaviour
         float colliderT = 1f - Mathf.Exp(-crouchColliderSharpness * Time.fixedDeltaTime);
         capsuleCollider.height = Mathf.Lerp(capsuleCollider.height, targetHeight, colliderT);
         capsuleCollider.center = Vector3.Lerp(capsuleCollider.center, targetCenter, colliderT);
+    }
+
+    void CacheCrouchLockFloorBounds()
+    {
+        if (string.IsNullOrWhiteSpace(crouchLockFloorName))
+        {
+            return;
+        }
+
+        GameObject floor = GameObject.Find(crouchLockFloorName);
+        if (floor == null)
+        {
+            return;
+        }
+
+        Collider floorCollider = floor.GetComponent<Collider>();
+        if (floorCollider != null)
+        {
+            crouchLockFloorBounds = floorCollider.bounds;
+            return;
+        }
+
+        Renderer floorRenderer = floor.GetComponent<Renderer>();
+        if (floorRenderer != null)
+        {
+            crouchLockFloorBounds = floorRenderer.bounds;
+        }
+    }
+
+    bool IsUnderCrouchLockFloor()
+    {
+        if (!crouchLockFloorBounds.HasValue)
+        {
+            return false;
+        }
+
+        Bounds floorBounds = crouchLockFloorBounds.Value;
+        Vector3 playerPosition = transform.position;
+        bool withinFloorX = playerPosition.x >= floorBounds.min.x - crouchLockBoundsPadding &&
+                            playerPosition.x <= floorBounds.max.x + crouchLockBoundsPadding;
+        bool withinFloorZ = playerPosition.z >= floorBounds.min.z - crouchLockBoundsPadding &&
+                            playerPosition.z <= floorBounds.max.z + crouchLockBoundsPadding;
+        bool belowFloor = playerPosition.y < floorBounds.center.y;
+
+        return belowFloor && withinFloorX && withinFloorZ;
     }
 }
