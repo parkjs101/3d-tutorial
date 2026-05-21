@@ -15,6 +15,7 @@ public class PlayerMovement : MonoBehaviour
 {
     [Header("Movement")]
     public float moveSpeed = 2f;
+    [SerializeField] private float sprintSpeed = 4f;
     public float jumpForce = 3.5f;
     [SerializeField] private float pushPullSpeed = 2f;
 
@@ -26,6 +27,7 @@ public class PlayerMovement : MonoBehaviour
 
     private Rigidbody rb;
     private Vector2 inputVector;
+    private bool sprintHeld;
     private bool jumpRequested;
     private bool interactRequested;
     private bool jumpAnimationActive;
@@ -33,6 +35,7 @@ public class PlayerMovement : MonoBehaviour
     private bool isDead;
     private WaypointFollower currentPlatform;
     private PushPullBox currentBox;
+    private Door highlightedDoor;
 
     public PlayerState CurrentState { get; private set; } = PlayerState.Idle;
     public Vector3 CurrentMoveDirection { get; private set; } = Vector3.zero;
@@ -64,10 +67,16 @@ public class PlayerMovement : MonoBehaviour
         }
 
         bool isGrounded = IsGrounded();
+        UpdateDoorHighlight();
 
         if (interactRequested)
         {
             interactRequested = false;
+            if (TryInteractWithDoor())
+            {
+                return;
+            }
+
             TogglePushPull();
         }
 
@@ -90,6 +99,7 @@ public class PlayerMovement : MonoBehaviour
         if (Keyboard.current == null || isDead)
         {
             inputVector = Vector2.zero;
+            sprintHeld = false;
             jumpRequested = false;
             interactRequested = false;
             return;
@@ -101,6 +111,8 @@ public class PlayerMovement : MonoBehaviour
         if (Keyboard.current.aKey.isPressed) inputVector.y = -1;
         if (Keyboard.current.wKey.isPressed) inputVector.x = -1;
         if (Keyboard.current.sKey.isPressed) inputVector.x = 1;
+
+        sprintHeld = Keyboard.current.leftShiftKey.isPressed || Keyboard.current.rightShiftKey.isPressed;
 
         if (Keyboard.current.spaceKey.wasPressedThisFrame)
         {
@@ -118,11 +130,12 @@ public class PlayerMovement : MonoBehaviour
         Vector3 moveDirection = GetMoveDirection();
         CurrentMoveDirection = moveDirection;
         Vector3 platformVelocity = currentPlatform != null ? currentPlatform.Velocity : Vector3.zero;
+        float activeMoveSpeed = sprintHeld && moveDirection.sqrMagnitude > 0.01f ? sprintSpeed : moveSpeed;
 
         rb.linearVelocity = new Vector3(
-            moveDirection.x * moveSpeed + platformVelocity.x,
+            moveDirection.x * activeMoveSpeed + platformVelocity.x,
             rb.linearVelocity.y,
-            moveDirection.z * moveSpeed + platformVelocity.z
+            moveDirection.z * activeMoveSpeed + platformVelocity.z
         );
 
         bool groundedForState = isGrounded;
@@ -241,6 +254,63 @@ public class PlayerMovement : MonoBehaviour
         return nearest;
     }
 
+    bool TryInteractWithDoor()
+    {
+        Door door = FindNearbyDoor(requireInteractable: true);
+        return door != null && door.TryOpen(transform.position);
+    }
+
+    void UpdateDoorHighlight()
+    {
+        Door nearestDoor = FindNearbyDoor(requireInteractable: true);
+
+        if (highlightedDoor == nearestDoor)
+        {
+            return;
+        }
+
+        if (highlightedDoor != null)
+        {
+            highlightedDoor.SetHighlighted(false);
+        }
+
+        highlightedDoor = nearestDoor;
+
+        if (highlightedDoor != null)
+        {
+            highlightedDoor.SetHighlighted(true);
+        }
+    }
+
+    Door FindNearbyDoor(bool requireInteractable)
+    {
+        Door[] doors = Object.FindObjectsByType<Door>(FindObjectsInactive.Exclude);
+        Door nearest = null;
+        float nearestDistance = float.MaxValue;
+
+        foreach (Door door in doors)
+        {
+            if (door == null)
+            {
+                continue;
+            }
+
+            if (requireInteractable && !door.CanInteract(transform.position))
+            {
+                continue;
+            }
+
+            float distance = Vector3.Distance(transform.position, door.transform.position);
+            if (distance < nearestDistance)
+            {
+                nearest = door;
+                nearestDistance = distance;
+            }
+        }
+
+        return nearest;
+    }
+
     void ReleaseBox()
     {
         if (currentBox != null)
@@ -280,6 +350,7 @@ public class PlayerMovement : MonoBehaviour
         isDead = false;
         inputVector = Vector2.zero;
         CurrentMoveDirection = Vector3.zero;
+        sprintHeld = false;
         jumpRequested = false;
         interactRequested = false;
         jumpAnimationActive = false;
