@@ -8,36 +8,29 @@ public enum PlayerState
     Jump,
     Fall,
     PushPull,
-    Climb,
     Dead
 }
 
 public class PlayerMovement : MonoBehaviour
 {
     [Header("Movement")]
-    public float moveSpeed = 5f;
-    public float jumpForce = 5f;
+    public float moveSpeed = 2f;
+    public float jumpForce = 3.5f;
     [SerializeField] private float pushPullSpeed = 2f;
-    [SerializeField] private float climbSpeed = 2f;
 
     [Header("Checks")]
     public Transform groundCheck;
     public float checkRadius = 0.1f;
     public LayerMask groundLayer;
     [SerializeField] private float interactRadius = 1.4f;
-    [SerializeField] private float wallCheckDistance = 0.6f;
-    [SerializeField] private LayerMask wallLayer = ~0;
-    [SerializeField] private float climbTopProbeHeight = 1.4f;
-    [SerializeField] private float climbTopForwardOffset = 0.7f;
-    [SerializeField] private float climbTopDownDistance = 1.8f;
-    [SerializeField] private float climbTopExitBackOffset = 0.15f;
 
     private Rigidbody rb;
     private Vector2 inputVector;
     private bool jumpRequested;
     private bool interactRequested;
+    private bool jumpAnimationActive;
+    private bool hasWalkableContact;
     private bool isDead;
-    private bool originalUseGravity;
     private WaypointFollower currentPlatform;
     private PushPullBox currentBox;
 
@@ -54,7 +47,6 @@ public class PlayerMovement : MonoBehaviour
             return;
         }
 
-        originalUseGravity = rb.useGravity;
         rb.constraints = RigidbodyConstraints.FreezeRotation;
     }
 
@@ -87,11 +79,6 @@ public class PlayerMovement : MonoBehaviour
         if (CurrentState == PlayerState.PushPull)
         {
             HandlePushPull(isGrounded);
-            return;
-        }
-
-        if (TryHandleClimb(isGrounded))
-        {
             return;
         }
 
@@ -128,8 +115,6 @@ public class PlayerMovement : MonoBehaviour
 
     void MoveNormally(bool isGrounded)
     {
-        SetClimbMode(false);
-
         Vector3 moveDirection = GetMoveDirection();
         CurrentMoveDirection = moveDirection;
         Vector3 platformVelocity = currentPlatform != null ? currentPlatform.Velocity : Vector3.zero;
@@ -140,7 +125,7 @@ public class PlayerMovement : MonoBehaviour
             moveDirection.z * moveSpeed + platformVelocity.z
         );
 
-        bool groundedForState = isGrounded && rb.linearVelocity.y <= 0.1f;
+        bool groundedForState = isGrounded;
         UpdateLocomotionState(groundedForState, moveDirection);
     }
 
@@ -154,6 +139,7 @@ public class PlayerMovement : MonoBehaviour
         }
 
         ReleaseBox();
+        jumpAnimationActive = true;
         rb.linearVelocity = new Vector3(rb.linearVelocity.x, jumpForce, rb.linearVelocity.z);
         CurrentState = PlayerState.Jump;
     }
@@ -176,8 +162,6 @@ public class PlayerMovement : MonoBehaviour
 
     void HandlePushPull(bool isGrounded)
     {
-        SetClimbMode(false);
-
         if (currentBox == null || !isGrounded)
         {
             ReleaseBox();
@@ -199,53 +183,19 @@ public class PlayerMovement : MonoBehaviour
         CurrentState = PlayerState.PushPull;
     }
 
-    bool TryHandleClimb(bool isGrounded)
-    {
-        if (!TryGetWallHit(out Vector3 wallDirection))
-        {
-            CurrentMoveDirection = Vector3.zero;
-            SetClimbMode(false);
-            return false;
-        }
-
-        if (isGrounded && inputVector.y < -0.01f)
-        {
-            CurrentMoveDirection = Vector3.zero;
-            SetClimbMode(false);
-            return false;
-        }
-
-        if (TryClimbOntoTop(wallDirection))
-        {
-            return true;
-        }
-
-        if (Mathf.Abs(inputVector.y) <= 0.01f)
-        {
-            CurrentMoveDirection = Vector3.zero;
-            SetClimbMode(false);
-            CurrentState = rb.linearVelocity.y > 0.1f ? PlayerState.Jump : PlayerState.Fall;
-            return false;
-        }
-
-        ReleaseBox();
-        CurrentMoveDirection = new Vector3(inputVector.x, 0f, 0f);
-        SetClimbMode(true);
-        rb.linearVelocity = new Vector3(inputVector.x * moveSpeed, inputVector.y * climbSpeed, 0f);
-        CurrentState = PlayerState.Climb;
-        return true;
-    }
-
-    void SetClimbMode(bool enabled)
-    {
-        if (rb != null)
-        {
-            rb.useGravity = enabled ? false : originalUseGravity;
-        }
-    }
-
     void UpdateLocomotionState(bool isGrounded, Vector3 moveDirection)
     {
+        if (jumpAnimationActive)
+        {
+            if (rb.linearVelocity.y > 0.1f)
+            {
+                CurrentState = PlayerState.Jump;
+                return;
+            }
+
+            jumpAnimationActive = false;
+        }
+
         if (!isGrounded)
         {
             CurrentState = rb.linearVelocity.y > 0.1f ? PlayerState.Jump : PlayerState.Fall;
@@ -307,73 +257,19 @@ public class PlayerMovement : MonoBehaviour
 
     bool IsGrounded()
     {
-        return groundCheck != null && Physics.CheckSphere(groundCheck.position, checkRadius, groundLayer);
-    }
-
-    bool TryGetWallHit(out Vector3 wallDirection)
-    {
-        Vector3 origin = transform.position + Vector3.up * 0.4f;
-        Vector3[] directions =
-        {
-            Vector3.right,
-            Vector3.left,
-            Vector3.forward,
-            Vector3.back
-        };
-
-        foreach (Vector3 direction in directions)
-        {
-            if (Physics.Raycast(origin, direction, wallCheckDistance, wallLayer))
-            {
-                wallDirection = direction;
-                return true;
-            }
-        }
-
-        wallDirection = Vector3.zero;
-        return false;
-    }
-
-    bool TryClimbOntoTop(Vector3 wallDirection)
-    {
-        if (inputVector.y <= 0.01f)
-        {
-            return false;
-        }
-
-        Vector3 upperWallCheckOrigin = transform.position + Vector3.up * climbTopProbeHeight;
-        if (Physics.Raycast(upperWallCheckOrigin, wallDirection, wallCheckDistance, wallLayer))
-        {
-            return false;
-        }
-
-        Vector3 topProbeOrigin =
-            transform.position +
-            Vector3.up * climbTopProbeHeight +
-            wallDirection * climbTopForwardOffset;
-
-        if (!Physics.Raycast(topProbeOrigin, Vector3.down, out RaycastHit topHit, climbTopDownDistance, groundLayer))
-        {
-            return false;
-        }
-
-        SetClimbMode(false);
-        float groundOffset = groundCheck != null ? transform.position.y - groundCheck.position.y : 0.5f;
-        transform.position = topHit.point + Vector3.up * groundOffset - wallDirection * climbTopExitBackOffset;
-        rb.linearVelocity = Vector3.zero;
-        CurrentState = PlayerState.Idle;
-        return true;
+        bool groundCheckHit = groundCheck != null && Physics.CheckSphere(groundCheck.position, checkRadius, groundLayer);
+        return groundCheckHit || hasWalkableContact;
     }
 
     public void EnterDeadState()
     {
         isDead = true;
+        jumpAnimationActive = false;
         ReleaseBox();
         CurrentState = PlayerState.Dead;
 
         if (rb != null)
         {
-            SetClimbMode(false);
             rb.linearVelocity = Vector3.zero;
             rb.angularVelocity = Vector3.zero;
         }
@@ -382,11 +278,12 @@ public class PlayerMovement : MonoBehaviour
     public void ResetAfterRespawn()
     {
         isDead = false;
-        SetClimbMode(false);
         inputVector = Vector2.zero;
         CurrentMoveDirection = Vector3.zero;
         jumpRequested = false;
         interactRequested = false;
+        jumpAnimationActive = false;
+        hasWalkableContact = false;
         ReleaseBox();
         CurrentState = PlayerState.Idle;
     }
@@ -398,6 +295,8 @@ public class PlayerMovement : MonoBehaviour
             return;
         }
 
+        hasWalkableContact = true;
+
         WaypointFollower platform = collision.collider.GetComponentInParent<WaypointFollower>();
         if (platform != null)
         {
@@ -407,6 +306,8 @@ public class PlayerMovement : MonoBehaviour
 
     void OnCollisionExit(Collision collision)
     {
+        hasWalkableContact = false;
+
         WaypointFollower platform = collision.collider.GetComponentInParent<WaypointFollower>();
         if (platform == currentPlatform)
         {

@@ -50,8 +50,7 @@ public class PlayerAnimatorBridge : MonoBehaviour
         float horizontalSpeed = GetHorizontalSpeed();
         bool grounded = state == PlayerState.Idle ||
                         state == PlayerState.Walk ||
-                        state == PlayerState.PushPull ||
-                        state == PlayerState.Climb;
+                        state == PlayerState.PushPull;
 
         animator.SetFloat(SpeedHash, state == PlayerState.Walk ? Mathf.Max(horizontalSpeed, walkSpeedThreshold) : 0f);
         animator.SetFloat(MotionSpeedHash, 1f);
