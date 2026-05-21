@@ -2571,6 +2571,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: '::'
   moveSpeed: 2
   sprintSpeed: 4
+  crouchSpeed: 1
   jumpForce: 3.5
   pushPullSpeed: 2
   groundCheck: {fileID: 488378409}
@@ -2579,6 +2580,9 @@ MonoBehaviour:
     serializedVersion: 2
     m_Bits: 64
   interactRadius: 1.4
+  crouchColliderHeight: 1.2
+  crouchColliderCenterY: -0.4
+  crouchColliderSharpness: 12
 --- !u!54 &1433940114
 Rigidbody:
   m_ObjectHideFlags: 0

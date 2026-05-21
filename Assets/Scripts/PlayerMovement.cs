@@ -29,7 +29,15 @@ public class PlayerMovement : MonoBehaviour
     public LayerMask groundLayer;
     [SerializeField] private float interactRadius = 1.4f;
 
+    [Header("Crouch Collider")]
+    [SerializeField] private float crouchColliderHeight = 1.2f;
+    [SerializeField] private float crouchColliderCenterY = -0.4f;
+    [SerializeField] private float crouchColliderSharpness = 12f;
+
     private Rigidbody rb;
+    private CapsuleCollider capsuleCollider;
+    private float standingColliderHeight;
+    private Vector3 standingColliderCenter;
     private Vector2 inputVector;
     private bool sprintHeld;
     private bool crouchToggled;
@@ -59,6 +67,13 @@ public class PlayerMovement : MonoBehaviour
         }
 
         rb.constraints = RigidbodyConstraints.FreezeRotation;
+
+        capsuleCollider = GetComponent<CapsuleCollider>();
+        if (capsuleCollider != null)
+        {
+            standingColliderHeight = capsuleCollider.height;
+            standingColliderCenter = capsuleCollider.center;
+        }
     }
 
     void Update()
@@ -71,8 +86,11 @@ public class PlayerMovement : MonoBehaviour
         if (rb == null || isDead)
         {
             CurrentMoveDirection = Vector3.zero;
+            UpdateCrouchCollider();
             return;
         }
+
+        UpdateCrouchCollider();
 
         bool isGrounded = IsGrounded();
         UpdateDoorHighlight();
@@ -381,6 +399,7 @@ public class PlayerMovement : MonoBehaviour
         CurrentMoveDirection = Vector3.zero;
         sprintHeld = false;
         crouchToggled = false;
+        UpdateCrouchCollider(immediate: true);
         jumpRequested = false;
         interactRequested = false;
         jumpAnimationActive = false;
@@ -450,5 +469,29 @@ public class PlayerMovement : MonoBehaviour
         }
 
         return false;
+    }
+
+    void UpdateCrouchCollider(bool immediate = false)
+    {
+        if (capsuleCollider == null)
+        {
+            return;
+        }
+
+        float targetHeight = crouchToggled ? crouchColliderHeight : standingColliderHeight;
+        Vector3 targetCenter = crouchToggled
+            ? new Vector3(standingColliderCenter.x, crouchColliderCenterY, standingColliderCenter.z)
+            : standingColliderCenter;
+
+        if (immediate)
+        {
+            capsuleCollider.height = targetHeight;
+            capsuleCollider.center = targetCenter;
+            return;
+        }
+
+        float colliderT = 1f - Mathf.Exp(-crouchColliderSharpness * Time.fixedDeltaTime);
+        capsuleCollider.height = Mathf.Lerp(capsuleCollider.height, targetHeight, colliderT);
+        capsuleCollider.center = Vector3.Lerp(capsuleCollider.center, targetCenter, colliderT);
     }
 }
