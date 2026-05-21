@@ -6,6 +6,9 @@ public class LittleNightmareSideCamera : MonoBehaviour
     [SerializeField] private Transform target;
     [SerializeField] private Vector3 offset = new Vector3(6f, 4f, -10f);
     [SerializeField] private float stairsOffsetX = 12f;
+    [SerializeField] private string crouchCameraFloorName = "Floor (6)";
+    [SerializeField] private float crouchUnderFloorOffsetY = 0f;
+    [SerializeField] private float crouchUnderFloorBoundsPadding = 0.25f;
     [SerializeField] private Vector3 lookAtOffset = new Vector3(0f, 1f, 0f);
     [SerializeField] private float followSharpness = 8f;
     [SerializeField] private float offsetTransitionSharpness = 4f;
@@ -15,6 +18,7 @@ public class LittleNightmareSideCamera : MonoBehaviour
     [SerializeField] private float lookAroundSharpness = 10f;
 
     private PlayerMovement playerMovement;
+    private Bounds? crouchCameraFloorBounds;
     private Vector3 currentBaseOffset;
     private Vector3 currentLookAroundOffset;
     private Vector3 currentCameraLookAroundOffset;
@@ -35,6 +39,7 @@ public class LittleNightmareSideCamera : MonoBehaviour
             playerMovement = target.GetComponent<PlayerMovement>();
         }
 
+        CacheCrouchCameraFloorBounds();
         currentBaseOffset = offset;
     }
 
@@ -118,7 +123,57 @@ public class LittleNightmareSideCamera : MonoBehaviour
             targetOffset.x = stairsOffsetX;
         }
 
+        if (ShouldUseCrouchUnderFloorView())
+        {
+            targetOffset.y = crouchUnderFloorOffsetY;
+        }
+
         float offsetT = 1f - Mathf.Exp(-offsetTransitionSharpness * Time.deltaTime);
         currentBaseOffset = Vector3.Lerp(currentBaseOffset, targetOffset, offsetT);
+    }
+
+    void CacheCrouchCameraFloorBounds()
+    {
+        if (string.IsNullOrWhiteSpace(crouchCameraFloorName))
+        {
+            return;
+        }
+
+        GameObject floor = GameObject.Find(crouchCameraFloorName);
+        if (floor == null)
+        {
+            return;
+        }
+
+        Collider floorCollider = floor.GetComponent<Collider>();
+        if (floorCollider != null)
+        {
+            crouchCameraFloorBounds = floorCollider.bounds;
+            return;
+        }
+
+        Renderer floorRenderer = floor.GetComponent<Renderer>();
+        if (floorRenderer != null)
+        {
+            crouchCameraFloorBounds = floorRenderer.bounds;
+        }
+    }
+
+    bool ShouldUseCrouchUnderFloorView()
+    {
+        if (target == null || playerMovement == null || !playerMovement.IsCrouching || !crouchCameraFloorBounds.HasValue)
+        {
+            return false;
+        }
+
+        Bounds floorBounds = crouchCameraFloorBounds.Value;
+        Vector3 targetPosition = target.position;
+        bool withinFloorX = targetPosition.x >= floorBounds.min.x - crouchUnderFloorBoundsPadding &&
+                            targetPosition.x <= floorBounds.max.x + crouchUnderFloorBoundsPadding;
+        bool withinFloorZ = targetPosition.z >= floorBounds.min.z - crouchUnderFloorBoundsPadding &&
+                            targetPosition.z <= floorBounds.max.z + crouchUnderFloorBoundsPadding;
+        bool belowFloor = targetPosition.y < floorBounds.center.y;
+
+        return belowFloor && withinFloorX && withinFloorZ;
     }
 }

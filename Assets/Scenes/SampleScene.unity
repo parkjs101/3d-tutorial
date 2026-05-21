@@ -995,6 +995,9 @@ MonoBehaviour:
   target: {fileID: 1433940112}
   offset: {x: 3, y: 1, z: 0}
   stairsOffsetX: 10
+  crouchCameraFloorName: Floor (6)
+  crouchUnderFloorOffsetY: 0
+  crouchUnderFloorBoundsPadding: 0.25
   lookAtOffset: {x: 0, y: 1, z: 0}
   followSharpness: 8
   offsetTransitionSharpness: 4
