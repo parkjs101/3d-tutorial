@@ -2,39 +2,44 @@ using UnityEngine;
 
 public class PlayerInteraction : MonoBehaviour
 {
-    [SerializeField] private float interactRadius = 1.4f;
+    [SerializeField] private float interactRadius = 1.8f;
 
-    private Door highlightedDoor;
+    private IInteractable highlightedInteractable;
 
     public PushPullBox ActiveBox { get; private set; }
     public bool IsPushPulling => ActiveBox != null;
 
-    public void UpdateDoorHighlight(Vector3 playerPosition)
+    public void UpdateHighlight(Vector3 playerPosition)
     {
-        Door nearestDoor = FindNearbyDoor(playerPosition, requireInteractable: true);
+        IInteractable nearestInteractable = FindNearbyInteractable(playerPosition);
 
-        if (highlightedDoor == nearestDoor)
+        if (highlightedInteractable == nearestInteractable)
         {
             return;
         }
 
-        if (highlightedDoor != null)
+        if (highlightedInteractable != null)
         {
-            highlightedDoor.SetHighlighted(false);
+            highlightedInteractable.SetHighlighted(false);
         }
 
-        highlightedDoor = nearestDoor;
+        highlightedInteractable = nearestInteractable;
 
-        if (highlightedDoor != null)
+        if (highlightedInteractable != null)
         {
-            highlightedDoor.SetHighlighted(true);
+            highlightedInteractable.SetHighlighted(true);
         }
     }
 
-    public bool TryInteractWithDoor(Vector3 playerPosition)
+    public bool TryInteract(PlayerMovement player)
     {
-        Door door = FindNearbyDoor(playerPosition, requireInteractable: true);
-        return door != null && door.TryOpen(playerPosition);
+        if (player == null)
+        {
+            return false;
+        }
+
+        IInteractable interactable = FindNearbyInteractable(player.transform.position);
+        return interactable != null && interactable.Interact(player);
     }
 
     public bool TogglePushPull(Vector3 playerPosition)
@@ -76,23 +81,28 @@ public class PlayerInteraction : MonoBehaviour
 
     public void ClearHighlight()
     {
-        if (highlightedDoor == null)
+        if (highlightedInteractable == null)
         {
             return;
         }
 
-        highlightedDoor.SetHighlighted(false);
-        highlightedDoor = null;
+        highlightedInteractable.SetHighlighted(false);
+        highlightedInteractable = null;
     }
 
     private PushPullBox FindNearbyBox(Vector3 playerPosition)
     {
-        Collider[] hits = Physics.OverlapSphere(playerPosition, interactRadius);
+        Collider[] hits = Physics.OverlapSphere(playerPosition, interactRadius, ~0, QueryTriggerInteraction.Collide);
         PushPullBox nearest = null;
         float nearestDistance = float.MaxValue;
 
         foreach (Collider hit in hits)
         {
+            if (hit == null)
+            {
+                continue;
+            }
+
             PushPullBox box = hit.GetComponentInParent<PushPullBox>();
             if (box == null)
             {
@@ -110,33 +120,84 @@ public class PlayerInteraction : MonoBehaviour
         return nearest;
     }
 
-    private Door FindNearbyDoor(Vector3 playerPosition, bool requireInteractable)
+    private IInteractable FindNearbyInteractable(Vector3 playerPosition)
     {
-        Door[] doors = Object.FindObjectsByType<Door>(FindObjectsInactive.Exclude);
-        Door nearest = null;
+        Collider[] hits = Physics.OverlapSphere(playerPosition, interactRadius, ~0, QueryTriggerInteraction.Collide);
+        IInteractable nearest = null;
         float nearestDistance = float.MaxValue;
 
-        foreach (Door door in doors)
+        foreach (Collider hit in hits)
         {
-            if (door == null)
+            if (hit == null)
             {
                 continue;
             }
 
-            if (requireInteractable && !door.CanInteract(playerPosition))
+            IInteractable interactable = FindInteractable(hit);
+            if (interactable == null)
             {
                 continue;
             }
 
-            float distance = Vector3.Distance(playerPosition, door.transform.position);
+            if (!interactable.CanInteract(playerPosition))
+            {
+                continue;
+            }
+
+            float distance = Vector3.Distance(playerPosition, hit.ClosestPoint(playerPosition));
             if (distance < nearestDistance)
             {
-                nearest = door;
+                nearest = interactable;
                 nearestDistance = distance;
             }
         }
 
         return nearest;
+    }
+
+    private IInteractable FindInteractable(Collider hit)
+    {
+        if (hit == null)
+        {
+            return null;
+        }
+
+        IInteractable interactable = FindInteractableInBehaviours(hit.GetComponents<MonoBehaviour>());
+        if (interactable != null)
+        {
+            return interactable;
+        }
+
+        interactable = FindInteractableInBehaviours(hit.GetComponentsInParent<MonoBehaviour>());
+        if (interactable != null)
+        {
+            return interactable;
+        }
+
+        return FindInteractableInBehaviours(hit.GetComponentsInChildren<MonoBehaviour>());
+    }
+
+    private IInteractable FindInteractableInBehaviours(MonoBehaviour[] behaviours)
+    {
+        if (behaviours == null)
+        {
+            return null;
+        }
+
+        foreach (MonoBehaviour behaviour in behaviours)
+        {
+            if (behaviour == null)
+            {
+                continue;
+            }
+
+            if (behaviour is IInteractable interactable)
+            {
+                return interactable;
+            }
+        }
+
+        return null;
     }
 
     void OnDisable()

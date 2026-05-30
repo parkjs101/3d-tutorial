@@ -10,12 +10,13 @@ public enum PlayerState
     Jump,
     Fall,
     PushPull,
+    Climb,
     Dead
 }
 
 [RequireComponent(typeof(PlayerInputReader))]
 [RequireComponent(typeof(PlayerInteraction))]
-public class PlayerMovement : MonoBehaviour
+public partial class PlayerMovement : MonoBehaviour
 {
     [Header("Movement")]
     public float moveSpeed = 2f;
@@ -52,6 +53,7 @@ public class PlayerMovement : MonoBehaviour
     private bool crouchToggled;
     private bool jumpRequested;
     private bool interactRequested;
+    private float climbInput;
     private bool jumpAnimationActive;
     private bool hasWalkableContact;
     private bool isDead;
@@ -63,7 +65,7 @@ public class PlayerMovement : MonoBehaviour
     public bool IsOnStairs => stairContacts.Count > 0;
     public bool IsCrouching => crouchToggled;
 
-    void Start()
+    void Awake()
     {
         inputReader = GetComponent<PlayerInputReader>();
         if (inputReader == null)
@@ -95,6 +97,7 @@ public class PlayerMovement : MonoBehaviour
         }
 
         CacheCrouchLockFloorBounds();
+        CacheLadderPoints();
     }
 
     void Update()
@@ -114,12 +117,20 @@ public class PlayerMovement : MonoBehaviour
         UpdateCrouchCollider();
 
         bool isGrounded = IsGrounded();
-        interaction.UpdateDoorHighlight(transform.position);
+        if (interaction != null)
+        {
+            interaction.UpdateHighlight(transform.position);
+        }
+
+        if (TryStartOrHandleLadderClimb())
+        {
+            return;
+        }
 
         if (interactRequested)
         {
             interactRequested = false;
-            if (interaction.TryInteractWithDoor(transform.position))
+            if (interaction != null && interaction.TryInteract(this))
             {
                 return;
             }
@@ -149,17 +160,20 @@ public class PlayerMovement : MonoBehaviour
             sprintHeld = false;
             jumpRequested = false;
             interactRequested = false;
+            climbInput = 0f;
             return;
         }
 
         inputReader.Tick(isDead);
         inputVector = inputReader.MoveInput;
         sprintHeld = inputReader.SprintHeld;
+        climbInput = inputReader.ClimbInput;
 
         if (isDead)
         {
             jumpRequested = false;
             interactRequested = false;
+            climbInput = 0f;
             return;
         }
 
@@ -216,6 +230,11 @@ public class PlayerMovement : MonoBehaviour
 
     void TogglePushPull()
     {
+        if (interaction == null)
+        {
+            return;
+        }
+
         if (CurrentState == PlayerState.PushPull)
         {
             ReleaseBox();
@@ -230,7 +249,7 @@ public class PlayerMovement : MonoBehaviour
 
     void HandlePushPull(bool isGrounded)
     {
-        if (!interaction.IsPushPulling || !isGrounded)
+        if (interaction == null || !interaction.IsPushPulling || !isGrounded)
         {
             ReleaseBox();
             return;
@@ -323,6 +342,7 @@ public class PlayerMovement : MonoBehaviour
     {
         isDead = true;
         jumpAnimationActive = false;
+        StopLadderClimb();
         ReleaseBox();
         CurrentState = PlayerState.Dead;
 
@@ -343,15 +363,18 @@ public class PlayerMovement : MonoBehaviour
         UpdateCrouchCollider(immediate: true);
         jumpRequested = false;
         interactRequested = false;
+        climbInput = 0f;
         jumpAnimationActive = false;
         hasWalkableContact = false;
         stairContacts.Clear();
+        StopLadderClimb();
         ReleaseBox();
         CurrentState = PlayerState.Idle;
     }
 
     void OnDisable()
     {
+        StopLadderClimb();
         ReleaseBox();
 
         if (interaction != null)

@@ -57,7 +57,8 @@ public class PlayerAnimatorBridge : MonoBehaviour
                         state == PlayerState.Walk ||
                         state == PlayerState.CrouchIdle ||
                         state == PlayerState.CrouchWalk ||
-                        state == PlayerState.PushPull;
+                        state == PlayerState.PushPull ||
+                        state == PlayerState.Climb;
         bool crouching = state == PlayerState.CrouchIdle || state == PlayerState.CrouchWalk;
         float crouchSpeed = state == PlayerState.CrouchWalk ? Mathf.Max(horizontalSpeed, walkSpeedThreshold) : 0f;
 
