@@ -6,6 +6,8 @@ public class LittleNightmareSideCamera : MonoBehaviour
     [SerializeField] private Transform target;
     [SerializeField] private Vector3 offset = new Vector3(6f, 4f, -10f);
     [SerializeField] private float stairsOffsetX = 12f;
+    [SerializeField] private CrouchLockZone crouchCameraZone;
+    [SerializeField] private Collider crouchCameraCollider;
     [SerializeField] private string crouchCameraFloorName = "Floor (6)";
     [SerializeField] private float crouchUnderFloorOffsetY = 0f;
     [SerializeField] private float crouchUnderFloorBoundsPadding = 0.25f;
@@ -27,7 +29,7 @@ public class LittleNightmareSideCamera : MonoBehaviour
     {
         if (target == null)
         {
-            GameObject player = GameObject.Find("Player");
+            PlayerMovement player = FindFirstObjectByType<PlayerMovement>();
             if (player != null)
             {
                 target = player.transform;
@@ -134,6 +136,18 @@ public class LittleNightmareSideCamera : MonoBehaviour
 
     void CacheCrouchCameraFloorBounds()
     {
+        if (crouchCameraZone != null)
+        {
+            crouchCameraFloorBounds = crouchCameraZone.Bounds;
+            return;
+        }
+
+        if (crouchCameraCollider != null)
+        {
+            crouchCameraFloorBounds = crouchCameraCollider.bounds;
+            return;
+        }
+
         if (string.IsNullOrWhiteSpace(crouchCameraFloorName))
         {
             return;

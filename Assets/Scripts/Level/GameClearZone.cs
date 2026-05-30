@@ -25,11 +25,17 @@ public class GameClearZone : MonoBehaviour
         }
 
         gameCleared = true;
+        if (GameSession.Current != null)
+        {
+            GameSession.Current.ClearLevel(player, clearMessage);
+            return;
+        }
+
         StopPlayer(player);
         Debug.Log(clearMessage);
     }
 
-    void StopPlayer(PlayerMovement player)
+    private void StopPlayer(PlayerMovement player)
     {
         player.enabled = false;
 
@@ -46,22 +52,5 @@ public class GameClearZone : MonoBehaviour
             rb.angularVelocity = Vector3.zero;
             rb.isKinematic = true;
         }
-    }
-
-    void OnGUI()
-    {
-        if (!gameCleared)
-        {
-            return;
-        }
-
-        GUIStyle style = new GUIStyle(GUI.skin.label)
-        {
-            alignment = TextAnchor.MiddleCenter,
-            fontSize = 48,
-            normal = { textColor = Color.white }
-        };
-
-        GUI.Label(new Rect(0, 0, Screen.width, Screen.height), clearMessage, style);
     }
 }

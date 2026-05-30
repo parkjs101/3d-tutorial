@@ -48,7 +48,15 @@ public class FallGameOver : MonoBehaviour
     IEnumerator HandleGameOver()
     {
         gameOver = true;
-        Debug.Log(gameOverMessage);
+
+        if (GameSession.Current != null)
+        {
+            GameSession.Current.ShowGameOver(restartDelay, gameOverMessage);
+        }
+        else
+        {
+            Debug.Log(gameOverMessage);
+        }
 
         if (playerMovement != null)
         {
@@ -81,22 +89,5 @@ public class FallGameOver : MonoBehaviour
         }
 
         gameOver = false;
-    }
-
-    void OnGUI()
-    {
-        if (!gameOver)
-        {
-            return;
-        }
-
-        GUIStyle style = new GUIStyle(GUI.skin.label)
-        {
-            alignment = TextAnchor.MiddleCenter,
-            fontSize = 48,
-            normal = { textColor = Color.white }
-        };
-
-        GUI.Label(new Rect(0, 0, Screen.width, Screen.height), gameOverMessage, style);
     }
 }

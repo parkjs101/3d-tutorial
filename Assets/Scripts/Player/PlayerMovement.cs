@@ -1,6 +1,5 @@
 using System.Collections.Generic;
 using UnityEngine;
-using UnityEngine.InputSystem;
 
 public enum PlayerState
 {
@@ -14,6 +13,8 @@ public enum PlayerState
     Dead
 }
 
+[RequireComponent(typeof(PlayerInputReader))]
+[RequireComponent(typeof(PlayerInteraction))]
 public class PlayerMovement : MonoBehaviour
 {
     [Header("Movement")]
@@ -27,7 +28,6 @@ public class PlayerMovement : MonoBehaviour
     public Transform groundCheck;
     public float checkRadius = 0.1f;
     public LayerMask groundLayer;
-    [SerializeField] private float interactRadius = 1.4f;
 
     [Header("Crouch Collider")]
     [SerializeField] private float crouchColliderHeight = 1.2f;
@@ -35,9 +35,13 @@ public class PlayerMovement : MonoBehaviour
     [SerializeField] private float crouchColliderSharpness = 12f;
 
     [Header("Crouch Lock")]
+    [SerializeField] private CrouchLockZone crouchLockZone;
+    [SerializeField] private Collider crouchLockCollider;
     [SerializeField] private string crouchLockFloorName = "Floor (6)";
     [SerializeField] private float crouchLockBoundsPadding = 0.25f;
 
+    private PlayerInputReader inputReader;
+    private PlayerInteraction interaction;
     private Rigidbody rb;
     private CapsuleCollider capsuleCollider;
     private Bounds? crouchLockFloorBounds;
@@ -52,8 +56,6 @@ public class PlayerMovement : MonoBehaviour
     private bool hasWalkableContact;
     private bool isDead;
     private WaypointFollower currentPlatform;
-    private PushPullBox currentBox;
-    private Door highlightedDoor;
     private readonly HashSet<Collider> stairContacts = new HashSet<Collider>();
 
     public PlayerState CurrentState { get; private set; } = PlayerState.Idle;
@@ -63,6 +65,18 @@ public class PlayerMovement : MonoBehaviour
 
     void Start()
     {
+        inputReader = GetComponent<PlayerInputReader>();
+        if (inputReader == null)
+        {
+            inputReader = gameObject.AddComponent<PlayerInputReader>();
+        }
+
+        interaction = GetComponent<PlayerInteraction>();
+        if (interaction == null)
+        {
+            interaction = gameObject.AddComponent<PlayerInteraction>();
+        }
+
         rb = GetComponent<Rigidbody>();
         if (rb == null)
         {
@@ -100,12 +114,12 @@ public class PlayerMovement : MonoBehaviour
         UpdateCrouchCollider();
 
         bool isGrounded = IsGrounded();
-        UpdateDoorHighlight();
+        interaction.UpdateDoorHighlight(transform.position);
 
         if (interactRequested)
         {
             interactRequested = false;
-            if (TryInteractWithDoor())
+            if (interaction.TryInteractWithDoor(transform.position))
             {
                 return;
             }
@@ -129,7 +143,7 @@ public class PlayerMovement : MonoBehaviour
 
     void ReadInput()
     {
-        if (Keyboard.current == null || isDead)
+        if (inputReader == null)
         {
             inputVector = Vector2.zero;
             sprintHeld = false;
@@ -138,16 +152,18 @@ public class PlayerMovement : MonoBehaviour
             return;
         }
 
-        inputVector = Vector2.zero;
+        inputReader.Tick(isDead);
+        inputVector = inputReader.MoveInput;
+        sprintHeld = inputReader.SprintHeld;
 
-        if (Keyboard.current.dKey.isPressed) inputVector.y = 1;
-        if (Keyboard.current.aKey.isPressed) inputVector.y = -1;
-        if (Keyboard.current.wKey.isPressed) inputVector.x = -1;
-        if (Keyboard.current.sKey.isPressed) inputVector.x = 1;
+        if (isDead)
+        {
+            jumpRequested = false;
+            interactRequested = false;
+            return;
+        }
 
-        sprintHeld = Keyboard.current.leftShiftKey.isPressed || Keyboard.current.rightShiftKey.isPressed;
-
-        if (Keyboard.current.leftCtrlKey.wasPressedThisFrame || Keyboard.current.rightCtrlKey.wasPressedThisFrame)
+        if (inputReader.CrouchPressed)
         {
             if (!crouchToggled || !IsUnderCrouchLockFloor())
             {
@@ -155,12 +171,12 @@ public class PlayerMovement : MonoBehaviour
             }
         }
 
-        if (Keyboard.current.spaceKey.wasPressedThisFrame)
+        if (inputReader.JumpPressed)
         {
             jumpRequested = true;
         }
 
-        if (Keyboard.current.eKey.wasPressedThisFrame)
+        if (inputReader.InteractPressed)
         {
             interactRequested = true;
         }
@@ -206,17 +222,15 @@ public class PlayerMovement : MonoBehaviour
             return;
         }
 
-        currentBox = FindNearbyBox();
-        if (currentBox != null)
+        if (interaction.TogglePushPull(transform.position))
         {
-            currentBox.BeginPushPull();
             CurrentState = PlayerState.PushPull;
         }
     }
 
     void HandlePushPull(bool isGrounded)
     {
-        if (currentBox == null || !isGrounded)
+        if (!interaction.IsPushPulling || !isGrounded)
         {
             ReleaseBox();
             return;
@@ -233,7 +247,7 @@ public class PlayerMovement : MonoBehaviour
             moveVelocity.z + platformVelocity.z
         );
 
-        currentBox.SetMoveVelocity(moveVelocity);
+        interaction.SetPushPullVelocity(moveVelocity);
         CurrentState = PlayerState.PushPull;
     }
 
@@ -286,94 +300,11 @@ public class PlayerMovement : MonoBehaviour
         return moveDirection;
     }
 
-    PushPullBox FindNearbyBox()
-    {
-        Collider[] hits = Physics.OverlapSphere(transform.position, interactRadius);
-        PushPullBox nearest = null;
-        float nearestDistance = float.MaxValue;
-
-        foreach (Collider hit in hits)
-        {
-            PushPullBox box = hit.GetComponentInParent<PushPullBox>();
-            if (box == null)
-            {
-                continue;
-            }
-
-            float distance = Vector3.Distance(transform.position, box.transform.position);
-            if (distance < nearestDistance)
-            {
-                nearest = box;
-                nearestDistance = distance;
-            }
-        }
-
-        return nearest;
-    }
-
-    bool TryInteractWithDoor()
-    {
-        Door door = FindNearbyDoor(requireInteractable: true);
-        return door != null && door.TryOpen(transform.position);
-    }
-
-    void UpdateDoorHighlight()
-    {
-        Door nearestDoor = FindNearbyDoor(requireInteractable: true);
-
-        if (highlightedDoor == nearestDoor)
-        {
-            return;
-        }
-
-        if (highlightedDoor != null)
-        {
-            highlightedDoor.SetHighlighted(false);
-        }
-
-        highlightedDoor = nearestDoor;
-
-        if (highlightedDoor != null)
-        {
-            highlightedDoor.SetHighlighted(true);
-        }
-    }
-
-    Door FindNearbyDoor(bool requireInteractable)
-    {
-        Door[] doors = Object.FindObjectsByType<Door>(FindObjectsInactive.Exclude);
-        Door nearest = null;
-        float nearestDistance = float.MaxValue;
-
-        foreach (Door door in doors)
-        {
-            if (door == null)
-            {
-                continue;
-            }
-
-            if (requireInteractable && !door.CanInteract(transform.position))
-            {
-                continue;
-            }
-
-            float distance = Vector3.Distance(transform.position, door.transform.position);
-            if (distance < nearestDistance)
-            {
-                nearest = door;
-                nearestDistance = distance;
-            }
-        }
-
-        return nearest;
-    }
-
     void ReleaseBox()
     {
-        if (currentBox != null)
+        if (interaction != null)
         {
-            currentBox.EndPushPull();
-            currentBox = null;
+            interaction.ReleaseBox();
         }
 
         if (CurrentState == PlayerState.PushPull)
@@ -417,6 +348,16 @@ public class PlayerMovement : MonoBehaviour
         stairContacts.Clear();
         ReleaseBox();
         CurrentState = PlayerState.Idle;
+    }
+
+    void OnDisable()
+    {
+        ReleaseBox();
+
+        if (interaction != null)
+        {
+            interaction.ClearHighlight();
+        }
     }
 
     void OnCollisionStay(Collision collision)
@@ -467,6 +408,11 @@ public class PlayerMovement : MonoBehaviour
 
     bool IsStairCollider(Collider collider)
     {
+        if (collider.GetComponentInParent<StairSurface>() != null)
+        {
+            return true;
+        }
+
         Transform current = collider.transform;
         while (current != null)
         {
@@ -507,6 +453,18 @@ public class PlayerMovement : MonoBehaviour
 
     void CacheCrouchLockFloorBounds()
     {
+        if (crouchLockZone != null)
+        {
+            crouchLockFloorBounds = crouchLockZone.Bounds;
+            return;
+        }
+
+        if (crouchLockCollider != null)
+        {
+            crouchLockFloorBounds = crouchLockCollider.bounds;
+            return;
+        }
+
         if (string.IsNullOrWhiteSpace(crouchLockFloorName))
         {
             return;
