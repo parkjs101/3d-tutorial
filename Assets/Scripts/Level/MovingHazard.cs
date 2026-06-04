@@ -1,19 +1,16 @@
 using UnityEngine;
 
-[RequireComponent(typeof(Rigidbody))]
-public class MovingHazard : MonoBehaviour
+public class MovingHazard : KinematicMover
 {
     [SerializeField] private float moveDistance = 2f;
     [SerializeField] private float moveSpeed = 1.5f;
     [SerializeField] private string gameOverMessage = "Game Over";
 
-    private Rigidbody rb;
     private Vector3 startPosition;
 
-    void Awake()
+    protected override void Awake()
     {
-        rb = GetComponent<Rigidbody>();
-        rb.isKinematic = true;
+        base.Awake();
         rb.useGravity = false;
         startPosition = rb.position;
     }
@@ -21,7 +18,7 @@ public class MovingHazard : MonoBehaviour
     void FixedUpdate()
     {
         float offset = Mathf.PingPong(Time.time * moveSpeed, moveDistance * 2f) - moveDistance;
-        rb.MovePosition(startPosition + Vector3.right * offset);
+        MoveTo(startPosition + Vector3.right * offset);
     }
 
     void OnCollisionEnter(Collision collision)

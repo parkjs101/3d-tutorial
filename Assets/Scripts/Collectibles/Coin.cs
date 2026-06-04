@@ -16,7 +16,16 @@ public class Coin : MonoBehaviour
             return;
         }
 
-        CoinCounter.AddCoin();
+        CoinCounter counter = FindFirstObjectByType<CoinCounter>();
+        if (counter != null)
+        {
+            counter.AddCoin();
+        }
+        else if (GameSession.Current != null)
+        {
+            GameSession.Current.AddCoin();
+        }
+
         Destroy(gameObject);
     }
 }
