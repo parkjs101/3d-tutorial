@@ -83,10 +83,20 @@ public class Door : MonoBehaviour, IInteractable
             return false;
         }
 
+        Open();
+        return true;
+    }
+
+    public void Open()
+    {
+        if (isOpen)
+        {
+            return;
+        }
+
         isOpen = true;
         SetHighlighted(false);
         Debug.Log("Door Opened");
-        return true;
     }
 
     public bool Interact(PlayerMovement player)
