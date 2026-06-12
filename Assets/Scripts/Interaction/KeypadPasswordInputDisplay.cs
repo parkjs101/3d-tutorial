@@ -7,9 +7,6 @@ using UnityEngine.UI;
 
 public class KeypadPasswordInputDisplay : MonoBehaviour
 {
-    private const int MaxPasswordLength = 8;
-    private const string CorrectPassword = "12345678";
-
 #if ENABLE_INPUT_SYSTEM
     private static readonly Key[] TopRowDigitKeys =
     {
@@ -26,123 +23,130 @@ public class KeypadPasswordInputDisplay : MonoBehaviour
 
     private Text passwordText;
     private Text resultText;
-    private string enteredDigits = string.Empty;
+    private KeypadPasswordController passwordController;
     private Action onPasswordAccepted;
-    private bool isPasswordAccepted;
 
-    public static KeypadPasswordInputDisplay Create(RectTransform parent)
+    public void Initialize(string correctPassword, Action passwordAccepted)
     {
-        GameObject displayObject = new GameObject("Password Input Display");
-        displayObject.transform.SetParent(parent, false);
+        if (string.IsNullOrEmpty(correctPassword))
+        {
+            Debug.LogError("Keypad password cannot be empty.", this);
+            return;
+        }
 
-        RectTransform displayRect = displayObject.AddComponent<RectTransform>();
-        displayRect.anchorMin = new Vector2(1f, 0.5f);
-        displayRect.anchorMax = new Vector2(1f, 0.5f);
-        displayRect.pivot = new Vector2(1f, 0.5f);
-        displayRect.sizeDelta = new Vector2(400f, 72f);
-        displayRect.anchoredPosition = new Vector2(-48f, 0f);
-
-        Text text = displayObject.AddComponent<Text>();
-        text.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
-        text.fontSize = 30;
-        text.alignment = TextAnchor.MiddleRight;
-        text.color = Color.red;
-        text.horizontalOverflow = HorizontalWrapMode.Overflow;
-        text.raycastTarget = false;
-
-        GameObject resultObject = new GameObject("Password Result");
-        resultObject.transform.SetParent(displayObject.transform, false);
-
-        RectTransform resultRect = resultObject.AddComponent<RectTransform>();
-        resultRect.anchorMin = new Vector2(0f, 0f);
-        resultRect.anchorMax = new Vector2(1f, 0f);
-        resultRect.pivot = new Vector2(1f, 1f);
-        resultRect.sizeDelta = new Vector2(0f, 48f);
-        resultRect.anchoredPosition = new Vector2(0f, -8f);
-
-        Text result = resultObject.AddComponent<Text>();
-        result.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
-        result.fontSize = 28;
-        result.alignment = TextAnchor.UpperRight;
-        result.color = Color.red;
-        result.raycastTarget = false;
-
-        KeypadPasswordInputDisplay display = displayObject.AddComponent<KeypadPasswordInputDisplay>();
-        display.passwordText = text;
-        display.resultText = result;
-        display.RefreshText();
-        return display;
-    }
-
-    public void Initialize(Action passwordAccepted)
-    {
+        BuildView();
+        passwordController = new KeypadPasswordController(correctPassword);
         onPasswordAccepted = passwordAccepted;
+        RefreshText();
     }
 
     public void ResetInput()
     {
-        enteredDigits = string.Empty;
-        isPasswordAccepted = false;
+        if (passwordController == null)
+        {
+            return;
+        }
+
+        passwordController.Reset();
         SetResult(string.Empty);
+        RefreshText();
+    }
+
+    private void SubmitDigit(int digit)
+    {
+        if (passwordController == null)
+        {
+            return;
+        }
+
+        KeypadPasswordController.SubmissionResult result = passwordController.SubmitDigit(digit);
+        RefreshText();
+
+        if (result == KeypadPasswordController.SubmissionResult.Accepted)
+        {
+            SetResult("pass");
+            onPasswordAccepted?.Invoke();
+        }
+        else if (result == KeypadPasswordController.SubmissionResult.Rejected)
+        {
+            SetResult("wrong");
+        }
+    }
+
+    private void RemoveLastDigit()
+    {
+        if (passwordController == null)
+        {
+            return;
+        }
+
+        passwordController.RemoveLastDigit();
         RefreshText();
     }
 
     void Update()
     {
-        if (isPasswordAccepted)
-        {
-            return;
-        }
-
         if (WasBackspacePressed())
         {
             RemoveLastDigit();
             return;
         }
 
-        if (enteredDigits.Length < MaxPasswordLength && TryGetPressedDigit(out int digit))
+        if (TryGetPressedDigit(out int digit))
         {
-            enteredDigits += digit.ToString();
-            RefreshText();
-
-            if (enteredDigits.Length == MaxPasswordLength)
-            {
-                ValidatePassword();
-            }
+            SubmitDigit(digit);
         }
     }
 
-    private void ValidatePassword()
+    private void BuildView()
     {
-        if (enteredDigits == CorrectPassword)
-        {
-            isPasswordAccepted = true;
-            SetResult("pass");
-            onPasswordAccepted?.Invoke();
-            return;
-        }
-
-        enteredDigits = string.Empty;
-        RefreshText();
-        SetResult("wrong");
-    }
-
-    private void RemoveLastDigit()
-    {
-        if (enteredDigits.Length == 0)
+        if (passwordText != null)
         {
             return;
         }
 
-        enteredDigits = enteredDigits.Substring(0, enteredDigits.Length - 1);
-        RefreshText();
+        RectTransform root = GetComponent<RectTransform>();
+        root.anchorMin = new Vector2(1f, 0.5f);
+        root.anchorMax = new Vector2(1f, 0.5f);
+        root.pivot = new Vector2(1f, 0.5f);
+        root.sizeDelta = new Vector2(400f, 88f);
+        root.anchoredPosition = new Vector2(-48f, 0f);
+
+        passwordText = CreateText("Password Text", root, new Vector2(0f, 20f), 30);
+        resultText = CreateText("Password Result", root, new Vector2(0f, -20f), 28);
+    }
+
+    private Text CreateText(string objectName, Transform parent, Vector2 position, int fontSize)
+    {
+        RectTransform rect = CreateRect(objectName, parent);
+        rect.anchorMin = new Vector2(1f, 0.5f);
+        rect.anchorMax = new Vector2(1f, 0.5f);
+        rect.pivot = new Vector2(1f, 0.5f);
+        rect.sizeDelta = new Vector2(400f, 40f);
+        rect.anchoredPosition = position;
+
+        Text text = rect.gameObject.AddComponent<Text>();
+        text.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+        text.fontSize = fontSize;
+        text.alignment = TextAnchor.MiddleRight;
+        text.color = Color.red;
+        text.raycastTarget = false;
+        return text;
+    }
+
+    private RectTransform CreateRect(string objectName, Transform parent)
+    {
+        GameObject rectObject = new GameObject(objectName);
+        rectObject.layer = gameObject.layer;
+        rectObject.transform.SetParent(parent, false);
+        return rectObject.AddComponent<RectTransform>();
     }
 
     private void RefreshText()
     {
-        if (passwordText != null)
+        if (passwordText != null && passwordController != null)
         {
-            passwordText.text = $"password: {enteredDigits}";
+            passwordText.text = $"password: {passwordController.EnteredDigits}";
         }
     }
 

@@ -8,8 +8,6 @@ public class LittleNightmareSideCamera : MonoBehaviour
     [SerializeField] private float stairsOffsetX = 12f;
     [SerializeField] private float ladderOffsetX = 6f;
     [SerializeField] private CrouchLockZone crouchCameraZone;
-    [SerializeField] private Collider crouchCameraCollider;
-    [SerializeField] private string crouchCameraFloorName = "Floor (6)";
     [SerializeField] private float crouchUnderFloorOffsetY = 0f;
     [SerializeField] private float crouchUnderFloorBoundsPadding = 0.25f;
     [SerializeField] private Vector3 lookAtOffset = new Vector3(0f, 1f, 0f);
@@ -29,15 +27,6 @@ public class LittleNightmareSideCamera : MonoBehaviour
 
     void Awake()
     {
-        if (target == null)
-        {
-            PlayerMovement player = FindFirstObjectByType<PlayerMovement>();
-            if (player != null)
-            {
-                target = player.transform;
-            }
-        }
-
         if (target != null)
         {
             playerMovement = target.GetComponent<PlayerMovement>();
@@ -184,37 +173,6 @@ public class LittleNightmareSideCamera : MonoBehaviour
         if (crouchCameraZone != null)
         {
             crouchCameraFloorBounds = crouchCameraZone.Bounds;
-            return;
-        }
-
-        if (crouchCameraCollider != null)
-        {
-            crouchCameraFloorBounds = crouchCameraCollider.bounds;
-            return;
-        }
-
-        if (string.IsNullOrWhiteSpace(crouchCameraFloorName))
-        {
-            return;
-        }
-
-        GameObject floor = GameObject.Find(crouchCameraFloorName);
-        if (floor == null)
-        {
-            return;
-        }
-
-        Collider floorCollider = floor.GetComponent<Collider>();
-        if (floorCollider != null)
-        {
-            crouchCameraFloorBounds = floorCollider.bounds;
-            return;
-        }
-
-        Renderer floorRenderer = floor.GetComponent<Renderer>();
-        if (floorRenderer != null)
-        {
-            crouchCameraFloorBounds = floorRenderer.bounds;
         }
     }
 

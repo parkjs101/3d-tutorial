@@ -10,9 +10,9 @@ public class PlayerInputReader : MonoBehaviour
     public bool InteractPressed { get; private set; }
     public float ClimbInput { get; private set; }
 
-    public void Tick(bool inputBlocked)
+    public void Tick()
     {
-        if (inputBlocked || Keyboard.current == null)
+        if (Keyboard.current == null)
         {
             Clear();
             return;

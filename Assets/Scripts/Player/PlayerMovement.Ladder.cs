@@ -5,8 +5,6 @@ public partial class PlayerMovement
     [Header("Ladder")]
     [SerializeField] private Transform ladderBottom;
     [SerializeField] private Transform ladderTop;
-    [SerializeField] private string ladderBottomName = "ladder bottom";
-    [SerializeField] private string ladderTopName = "ladder top";
     [SerializeField] private float ladderEnterRadius = 1.2f;
     [SerializeField] private float ladderClimbSpeed = 2f;
     [SerializeField] private float ladderTopExitThreshold = 0.15f;
@@ -35,46 +33,8 @@ public partial class PlayerMovement
         return true;
     }
 
-    private void CacheLadderPoints()
-    {
-        if (ladderBottom == null)
-        {
-            ladderBottom = FindLadderPoint(ladderBottomName, "Ladder Bottom", "LadderBottom");
-        }
-
-        if (ladderTop == null)
-        {
-            ladderTop = FindLadderPoint(ladderTopName, "Ladder Top", "LadderTop");
-        }
-    }
-
-    private Transform FindLadderPoint(params string[] names)
-    {
-        foreach (string pointName in names)
-        {
-            if (string.IsNullOrWhiteSpace(pointName))
-            {
-                continue;
-            }
-
-            GameObject point = GameObject.Find(pointName);
-            if (point != null)
-            {
-                return point.transform;
-            }
-        }
-
-        return null;
-    }
-
     private bool HasLadderPoints()
     {
-        if (ladderBottom != null && ladderTop != null)
-        {
-            return true;
-        }
-
-        CacheLadderPoints();
         return ladderBottom != null && ladderTop != null;
     }
 

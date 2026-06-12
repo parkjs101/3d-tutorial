@@ -1,6 +1,6 @@
 using UnityEngine;
 
-public class Door : MonoBehaviour, IInteractable
+public class Door : MonoBehaviour, IInteractable, IUnlockable
 {
     [Header("Interaction")]
     [SerializeField] private Transform interactionPoint;
@@ -96,7 +96,13 @@ public class Door : MonoBehaviour, IInteractable
 
         isOpen = true;
         SetHighlighted(false);
+        UpdateHandleColor();
         Debug.Log("Door Opened");
+    }
+
+    public void Unlock()
+    {
+        Open();
     }
 
     public bool Interact(PlayerMovement player)

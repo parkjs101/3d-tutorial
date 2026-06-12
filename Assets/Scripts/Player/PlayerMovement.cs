@@ -1,4 +1,3 @@
-using System.Collections.Generic;
 using UnityEngine;
 
 public enum PlayerState
@@ -10,8 +9,7 @@ public enum PlayerState
     Jump,
     Fall,
     PushPull,
-    Climb,
-    Dead
+    Climb
 }
 
 [RequireComponent(typeof(PlayerInputReader))]
@@ -30,40 +28,18 @@ public partial class PlayerMovement : MonoBehaviour
     public float checkRadius = 0.1f;
     public LayerMask groundLayer;
 
-    [Header("Crouch Collider")]
-    [SerializeField] private float crouchColliderHeight = 1.2f;
-    [SerializeField] private float crouchColliderCenterY = -0.4f;
-    [SerializeField] private float crouchColliderSharpness = 12f;
-
-    [Header("Crouch Lock")]
-    [SerializeField] private CrouchLockZone crouchLockZone;
-    [SerializeField] private Collider crouchLockCollider;
-    [SerializeField] private string crouchLockFloorName = "Floor (6)";
-    [SerializeField] private float crouchLockBoundsPadding = 0.25f;
-
     private PlayerInputReader inputReader;
     private PlayerInteraction interaction;
     private Rigidbody rb;
-    private CapsuleCollider capsuleCollider;
-    private Bounds? crouchLockFloorBounds;
-    private float standingColliderHeight;
-    private Vector3 standingColliderCenter;
     private Vector2 inputVector;
     private bool sprintHeld;
-    private bool crouchToggled;
     private bool jumpRequested;
     private bool interactRequested;
     private float climbInput;
     private bool jumpAnimationActive;
-    private bool hasWalkableContact;
-    private bool isDead;
-    private WaypointFollower currentPlatform;
-    private readonly HashSet<Collider> stairContacts = new HashSet<Collider>();
 
     public PlayerState CurrentState { get; private set; } = PlayerState.Idle;
     public Vector3 CurrentMoveDirection { get; private set; } = Vector3.zero;
-    public bool IsOnStairs => stairContacts.Count > 0;
-    public bool IsCrouching => crouchToggled;
 
     void Awake()
     {
@@ -89,15 +65,7 @@ public partial class PlayerMovement : MonoBehaviour
 
         rb.constraints = RigidbodyConstraints.FreezeRotation;
 
-        capsuleCollider = GetComponent<CapsuleCollider>();
-        if (capsuleCollider != null)
-        {
-            standingColliderHeight = capsuleCollider.height;
-            standingColliderCenter = capsuleCollider.center;
-        }
-
-        CacheCrouchLockFloorBounds();
-        CacheLadderPoints();
+        InitializeCrouch();
     }
 
     void Update()
@@ -107,7 +75,7 @@ public partial class PlayerMovement : MonoBehaviour
 
     void FixedUpdate()
     {
-        if (rb == null || isDead)
+        if (rb == null)
         {
             CurrentMoveDirection = Vector3.zero;
             UpdateCrouchCollider();
@@ -164,18 +132,10 @@ public partial class PlayerMovement : MonoBehaviour
             return;
         }
 
-        inputReader.Tick(isDead);
+        inputReader.Tick();
         inputVector = inputReader.MoveInput;
         sprintHeld = inputReader.SprintHeld;
         climbInput = inputReader.ClimbInput;
-
-        if (isDead)
-        {
-            jumpRequested = false;
-            interactRequested = false;
-            climbInput = 0f;
-            return;
-        }
 
         if (inputReader.CrouchPressed)
         {
@@ -338,40 +298,6 @@ public partial class PlayerMovement : MonoBehaviour
         return groundCheckHit || hasWalkableContact;
     }
 
-    public void EnterDeadState()
-    {
-        isDead = true;
-        jumpAnimationActive = false;
-        StopLadderClimb();
-        ReleaseBox();
-        CurrentState = PlayerState.Dead;
-
-        if (rb != null)
-        {
-            rb.linearVelocity = Vector3.zero;
-            rb.angularVelocity = Vector3.zero;
-        }
-    }
-
-    public void ResetAfterRespawn()
-    {
-        isDead = false;
-        inputVector = Vector2.zero;
-        CurrentMoveDirection = Vector3.zero;
-        sprintHeld = false;
-        crouchToggled = false;
-        UpdateCrouchCollider(immediate: true);
-        jumpRequested = false;
-        interactRequested = false;
-        climbInput = 0f;
-        jumpAnimationActive = false;
-        hasWalkableContact = false;
-        stairContacts.Clear();
-        StopLadderClimb();
-        ReleaseBox();
-        CurrentState = PlayerState.Idle;
-    }
-
     void OnDisable()
     {
         StopLadderClimb();
@@ -383,151 +309,4 @@ public partial class PlayerMovement : MonoBehaviour
         }
     }
 
-    void OnCollisionStay(Collision collision)
-    {
-        if (!IsStandingOnCollision(collision))
-        {
-            return;
-        }
-
-        hasWalkableContact = true;
-
-        WaypointFollower platform = collision.collider.GetComponentInParent<WaypointFollower>();
-        if (platform != null)
-        {
-            currentPlatform = platform;
-        }
-
-        if (IsStairCollider(collision.collider))
-        {
-            stairContacts.Add(collision.collider);
-        }
-    }
-
-    void OnCollisionExit(Collision collision)
-    {
-        hasWalkableContact = false;
-        stairContacts.Remove(collision.collider);
-
-        WaypointFollower platform = collision.collider.GetComponentInParent<WaypointFollower>();
-        if (platform == currentPlatform)
-        {
-            currentPlatform = null;
-        }
-    }
-
-    bool IsStandingOnCollision(Collision collision)
-    {
-        foreach (ContactPoint contact in collision.contacts)
-        {
-            if (contact.normal.y > 0.5f)
-            {
-                return true;
-            }
-        }
-
-        return false;
-    }
-
-    bool IsStairCollider(Collider collider)
-    {
-        if (collider.GetComponentInParent<StairSurface>() != null)
-        {
-            return true;
-        }
-
-        Transform current = collider.transform;
-        while (current != null)
-        {
-            if (current.name.IndexOf("stair", System.StringComparison.OrdinalIgnoreCase) >= 0)
-            {
-                return true;
-            }
-
-            current = current.parent;
-        }
-
-        return false;
-    }
-
-    void UpdateCrouchCollider(bool immediate = false)
-    {
-        if (capsuleCollider == null)
-        {
-            return;
-        }
-
-        float targetHeight = crouchToggled ? crouchColliderHeight : standingColliderHeight;
-        Vector3 targetCenter = crouchToggled
-            ? new Vector3(standingColliderCenter.x, crouchColliderCenterY, standingColliderCenter.z)
-            : standingColliderCenter;
-
-        if (immediate)
-        {
-            capsuleCollider.height = targetHeight;
-            capsuleCollider.center = targetCenter;
-            return;
-        }
-
-        float colliderT = 1f - Mathf.Exp(-crouchColliderSharpness * Time.fixedDeltaTime);
-        capsuleCollider.height = Mathf.Lerp(capsuleCollider.height, targetHeight, colliderT);
-        capsuleCollider.center = Vector3.Lerp(capsuleCollider.center, targetCenter, colliderT);
-    }
-
-    void CacheCrouchLockFloorBounds()
-    {
-        if (crouchLockZone != null)
-        {
-            crouchLockFloorBounds = crouchLockZone.Bounds;
-            return;
-        }
-
-        if (crouchLockCollider != null)
-        {
-            crouchLockFloorBounds = crouchLockCollider.bounds;
-            return;
-        }
-
-        if (string.IsNullOrWhiteSpace(crouchLockFloorName))
-        {
-            return;
-        }
-
-        GameObject floor = GameObject.Find(crouchLockFloorName);
-        if (floor == null)
-        {
-            return;
-        }
-
-        Collider floorCollider = floor.GetComponent<Collider>();
-        if (floorCollider != null)
-        {
-            crouchLockFloorBounds = floorCollider.bounds;
-            return;
-        }
-
-        Renderer floorRenderer = floor.GetComponent<Renderer>();
-        if (floorRenderer != null)
-        {
-            crouchLockFloorBounds = floorRenderer.bounds;
-        }
-    }
-
-    bool IsUnderCrouchLockFloor()
-    {
-        if (!crouchLockFloorBounds.HasValue)
-        {
-            return false;
-        }
-
-        Bounds floorBounds = crouchLockFloorBounds.Value;
-        Vector3 playerPosition = transform.position;
-        bool withinFloorX = playerPosition.x >= floorBounds.min.x - crouchLockBoundsPadding &&
-                            playerPosition.x <= floorBounds.max.x + crouchLockBoundsPadding;
-        bool withinFloorZ = playerPosition.z >= floorBounds.min.z - crouchLockBoundsPadding &&
-                            playerPosition.z <= floorBounds.max.z + crouchLockBoundsPadding;
-        bool belowFloor = playerPosition.y < floorBounds.center.y;
-
-        return belowFloor && withinFloorX && withinFloorZ;
-    }
 }
