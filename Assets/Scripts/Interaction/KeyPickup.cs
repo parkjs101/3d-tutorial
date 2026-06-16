@@ -6,6 +6,7 @@ public class KeyPickup : MonoBehaviour, IInteractable
 {
     [Header("Interaction")]
     [SerializeField] private float interactRadius = 1.8f;
+    [SerializeField] private string keyId = "basement_key";
 
     [Header("Held Position")]
     [SerializeField] private string targetBoneName = "LeftIndex3";
@@ -13,6 +14,8 @@ public class KeyPickup : MonoBehaviour, IInteractable
     [SerializeField] private Vector3 heldLocalEulerAngles = Vector3.zero;
 
     private bool isPickedUp;
+
+    public string KeyId => keyId;
 
     public bool CanInteract(Vector3 playerPosition)
     {
@@ -33,8 +36,33 @@ public class KeyPickup : MonoBehaviour, IInteractable
             return false;
         }
 
-        AttachToBone(targetBone);
+        PlayerKeyHolder keyHolder = player.GetComponent<PlayerKeyHolder>();
+        if (keyHolder == null)
+        {
+            Debug.LogError("KeyPickup requires PlayerKeyHolder on Player.", player);
+            return false;
+        }
+
+        keyHolder.HoldKey(this);
+        AttachTo(targetBone, heldLocalPosition, heldLocalEulerAngles);
         return true;
+    }
+
+    public void AttachTo(Transform parent, Vector3 localPosition, Vector3 localEulerAngles)
+    {
+        if (parent == null)
+        {
+            return;
+        }
+
+        Vector3 targetWorldScale = transform.lossyScale;
+        isPickedUp = true;
+        DisablePickupPhysics();
+
+        transform.SetParent(parent, worldPositionStays: false);
+        transform.localPosition = localPosition;
+        transform.localRotation = Quaternion.Euler(localEulerAngles);
+        transform.localScale = GetLocalScaleForWorldScale(parent, targetWorldScale);
     }
 
     public void SetHighlighted(bool highlighted)
@@ -54,14 +82,25 @@ public class KeyPickup : MonoBehaviour, IInteractable
         return null;
     }
 
-    private void AttachToBone(Transform targetBone)
+    private Vector3 GetLocalScaleForWorldScale(Transform parent, Vector3 targetWorldScale)
     {
-        isPickedUp = true;
-        DisablePickupPhysics();
+        Vector3 parentScale = parent.lossyScale;
 
-        transform.SetParent(targetBone, worldPositionStays: false);
-        transform.localPosition = heldLocalPosition;
-        transform.localRotation = Quaternion.Euler(heldLocalEulerAngles);
+        return new Vector3(
+            SafeDivide(targetWorldScale.x, parentScale.x),
+            SafeDivide(targetWorldScale.y, parentScale.y),
+            SafeDivide(targetWorldScale.z, parentScale.z)
+        );
+    }
+
+    private float SafeDivide(float numerator, float denominator)
+    {
+        if (Mathf.Approximately(denominator, 0f))
+        {
+            return numerator;
+        }
+
+        return numerator / denominator;
     }
 
     private void DisablePickupPhysics()
