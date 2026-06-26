@@ -38,15 +38,7 @@ public class PlayerFootstepEmitter : MonoBehaviour
             noiseEmitter = gameObject.AddComponent<NoiseEmitter>();
         }
 
-        if (audioSource == null)
-        {
-            audioSource = GetComponent<AudioSource>();
-        }
-
-        if (audioSource == null)
-        {
-            audioSource = gameObject.AddComponent<AudioSource>();
-        }
+        audioSource = ResolveAudioSource();
 
         audioSource.playOnAwake = false;
         audioSource.spatialBlend = 1f;
@@ -82,8 +74,7 @@ public class PlayerFootstepEmitter : MonoBehaviour
             return false;
         }
 
-        PlayerState state = playerMovement.CurrentState;
-        return state == PlayerState.Walk || state == PlayerState.CrouchWalk;
+        return playerMovement.CurrentState == PlayerState.Walk;
     }
 
     private float GetHorizontalSpeed()
@@ -91,6 +82,17 @@ public class PlayerFootstepEmitter : MonoBehaviour
         Vector3 velocity = playerRigidbody.linearVelocity;
         velocity.y = 0f;
         return velocity.magnitude;
+    }
+
+    private AudioSource ResolveAudioSource()
+    {
+        if (audioSource != null)
+        {
+            return audioSource;
+        }
+
+        AudioSource existingAudioSource = GetComponent<AudioSource>();
+        return existingAudioSource != null ? existingAudioSource : gameObject.AddComponent<AudioSource>();
     }
 
     private void PlayFootstep(bool isRunning)
