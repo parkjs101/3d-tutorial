@@ -62,20 +62,26 @@ public class VisionChasingNpc : MonoBehaviour
             return;
         }
 
-        if (isPaused)
+        bool canSeeTarget = CanSeeTarget();
+        if (!canSeeTarget)
         {
-            UpdatePause();
+            if (hasSpottedTarget)
+            {
+                StopChase("Lost sight");
+            }
+
             return;
         }
 
-        if (!hasSpottedTarget && CanSeeTarget())
+        if (!hasSpottedTarget)
         {
             hasSpottedTarget = true;
             refreshTimer = destinationRefreshInterval;
         }
 
-        if (!hasSpottedTarget)
+        if (isPaused)
         {
+            UpdatePause();
             return;
         }
 
@@ -195,6 +201,16 @@ public class VisionChasingNpc : MonoBehaviour
         agent.isStopped = true;
         agent.ResetPath();
         SetSightStatus("Paused near target");
+    }
+
+    private void StopChase(string status)
+    {
+        hasSpottedTarget = false;
+        isPaused = false;
+        refreshTimer = 0f;
+        agent.isStopped = false;
+        agent.ResetPath();
+        SetSightStatus(status);
     }
 
     private void UpdatePause()
