@@ -13,11 +13,14 @@ public class NoiseChasingNpc : MonoBehaviour
     [SerializeField] private float approachRadius = 1.5f;
     [SerializeField] private float arrivalDistance = 0.4f;
     [SerializeField] private float navMeshSampleDistance = 2f;
+    [SerializeField] private float pauseDuration = 1f;
 
     private NavMeshAgent agent;
     private bool hasTargetNoise;
+    private bool isPaused;
     private NoiseEvent targetNoise;
     private Vector3 targetDestination;
+    private float pauseTimer;
 
     void Awake()
     {
@@ -47,9 +50,15 @@ public class NoiseChasingNpc : MonoBehaviour
             return;
         }
 
+        if (isPaused)
+        {
+            UpdatePause();
+            return;
+        }
+
         if (!agent.pathPending && agent.remainingDistance <= arrivalDistance)
         {
-            hasTargetNoise = false;
+            PauseChase();
         }
     }
 
@@ -65,6 +74,9 @@ public class NoiseChasingNpc : MonoBehaviour
         {
             return;
         }
+
+        isPaused = false;
+        agent.isStopped = false;
 
         hasTargetNoise = true;
         targetNoise = noiseEvent;
@@ -127,6 +139,38 @@ public class NoiseChasingNpc : MonoBehaviour
         }
 
         return false;
+    }
+
+    private void PauseChase()
+    {
+        isPaused = true;
+        pauseTimer = Mathf.Max(0f, pauseDuration);
+        agent.isStopped = true;
+        agent.ResetPath();
+    }
+
+    private void UpdatePause()
+    {
+        pauseTimer -= Time.deltaTime;
+        if (pauseTimer > 0f)
+        {
+            return;
+        }
+
+        isPaused = false;
+        agent.isStopped = false;
+
+        if (Time.time - targetNoise.Time > memoryDuration)
+        {
+            hasTargetNoise = false;
+            return;
+        }
+
+        Vector3 desiredDestination = GetClosestApproachPoint(targetNoise.Position);
+        if (!TrySetDestination(desiredDestination, targetNoise.Position))
+        {
+            hasTargetNoise = false;
+        }
     }
 
     void OnDrawGizmosSelected()

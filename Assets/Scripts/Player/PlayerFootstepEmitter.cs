@@ -7,6 +7,7 @@ public class PlayerFootstepEmitter : MonoBehaviour
     [Header("Audio")]
     [SerializeField] private AudioSource audioSource;
     [SerializeField] private AudioClip[] footstepClips;
+    [SerializeField] private AudioClip landingClip;
     [SerializeField] private Vector2 pitchRange = new Vector2(0.95f, 1.05f);
 
     [Header("Timing")]
@@ -20,12 +21,20 @@ public class PlayerFootstepEmitter : MonoBehaviour
     [SerializeField] private float walkNoiseRadius = 4f;
     [SerializeField] private float runLoudness = 2f;
     [SerializeField] private float runNoiseRadius = 7f;
+    [SerializeField] private float landingLoudness = 2f;
+    [SerializeField] private float landingNoiseRadius = 6f;
+
+    [Header("Surface Check")]
+    [SerializeField] private LayerMask surfaceLayerMask = ~0;
+    [SerializeField] private float surfaceCheckStartOffset = 0.2f;
+    [SerializeField] private float surfaceCheckDistance = 0.6f;
 
     private PlayerMovement playerMovement;
     private Rigidbody playerRigidbody;
     private NoiseEmitter noiseEmitter;
     private float stepTimer;
     private int lastClipIndex = -1;
+    private bool wasAirborne;
 
     void Awake()
     {
@@ -46,6 +55,8 @@ public class PlayerFootstepEmitter : MonoBehaviour
 
     void Update()
     {
+        UpdateLandingSound();
+
         if (!ShouldPlayFootsteps(out float horizontalSpeed, out bool isRunning))
         {
             stepTimer = 0f;
@@ -97,16 +108,68 @@ public class PlayerFootstepEmitter : MonoBehaviour
 
     private void PlayFootstep(bool isRunning)
     {
+        SilentFootstepSurface surface = GetCurrentSurface();
         AudioClip clip = GetRandomFootstepClip();
-        if (clip != null)
+        if ((surface == null || !surface.MuteFootstepAudio) && clip != null)
         {
             audioSource.pitch = Random.Range(pitchRange.x, pitchRange.y);
             audioSource.PlayOneShot(clip);
         }
 
+        if (surface != null && surface.MuteFootstepNoise)
+        {
+            return;
+        }
+
         float loudness = isRunning ? runLoudness : walkLoudness;
         float radius = isRunning ? runNoiseRadius : walkNoiseRadius;
         noiseEmitter.Emit(transform.position, loudness, radius);
+    }
+
+    private void UpdateLandingSound()
+    {
+        bool isAirborne = IsAirborneState(playerMovement.CurrentState);
+        if (wasAirborne && !isAirborne)
+        {
+            PlayLanding();
+        }
+
+        wasAirborne = isAirborne;
+    }
+
+    private bool IsAirborneState(PlayerState playerState)
+    {
+        return playerState == PlayerState.Jump || playerState == PlayerState.Fall;
+    }
+
+    private void PlayLanding()
+    {
+        SilentFootstepSurface surface = GetCurrentSurface();
+        AudioClip clip = landingClip != null ? landingClip : GetRandomFootstepClip();
+        if ((surface == null || !surface.MuteFootstepAudio) && clip != null)
+        {
+            audioSource.pitch = Random.Range(pitchRange.x, pitchRange.y);
+            audioSource.PlayOneShot(clip);
+        }
+
+        if (surface != null && surface.MuteFootstepNoise)
+        {
+            return;
+        }
+
+        noiseEmitter.Emit(transform.position, landingLoudness, landingNoiseRadius);
+    }
+
+    private SilentFootstepSurface GetCurrentSurface()
+    {
+        Transform checkTransform = playerMovement.groundCheck != null ? playerMovement.groundCheck : transform;
+        Vector3 origin = checkTransform.position + Vector3.up * surfaceCheckStartOffset;
+        if (!Physics.Raycast(origin, Vector3.down, out RaycastHit hit, surfaceCheckDistance, surfaceLayerMask, QueryTriggerInteraction.Ignore))
+        {
+            return null;
+        }
+
+        return hit.collider.GetComponentInParent<SilentFootstepSurface>();
     }
 
     private AudioClip GetRandomFootstepClip()
