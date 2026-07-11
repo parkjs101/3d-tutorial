@@ -208,7 +208,7 @@ MonoBehaviour:
       type: {class: URPReflectionProbeSettings, ns: UnityEngine.Rendering, asm: Unity.RenderPipelines.Universal.Runtime}
       data:
         version: 1
-        useReflectionProbeRotation: 0
+        useReflectionProbeRotation: 1
     - rid: 5514225687166451723
       type: {class: ScreenSpaceAmbientOcclusionDynamicResources, ns: UnityEngine.Rendering.Universal, asm: Unity.RenderPipelines.Universal.Runtime}
       data:

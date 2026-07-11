@@ -4,7 +4,7 @@ using UnityEngine;
 public partial class PlayerMovement
 {
     private bool hasWalkableContact;
-    private WaypointFollower currentPlatform;
+    private KinematicMover currentPlatform;
     private readonly HashSet<Collider> stairContacts = new HashSet<Collider>();
 
     public bool IsOnStairs => stairContacts.Count > 0;
@@ -18,7 +18,7 @@ public partial class PlayerMovement
 
         hasWalkableContact = true;
 
-        WaypointFollower platform = collision.collider.GetComponentInParent<WaypointFollower>();
+        KinematicMover platform = collision.collider.GetComponentInParent<KinematicMover>();
         if (platform != null)
         {
             currentPlatform = platform;
@@ -35,7 +35,7 @@ public partial class PlayerMovement
         hasWalkableContact = false;
         stairContacts.Remove(collision.collider);
 
-        WaypointFollower platform = collision.collider.GetComponentInParent<WaypointFollower>();
+        KinematicMover platform = collision.collider.GetComponentInParent<KinematicMover>();
         if (platform == currentPlatform)
         {
             currentPlatform = null;
