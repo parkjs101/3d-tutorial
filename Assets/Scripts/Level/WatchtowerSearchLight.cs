@@ -1,6 +1,7 @@
 using UnityEngine;
 using UnityEngine.Rendering;
 using UnityEngine.SceneManagement;
+using UnityEngine.Serialization;
 
 public class WatchtowerSearchLight : MonoBehaviour
 {
@@ -11,8 +12,10 @@ public class WatchtowerSearchLight : MonoBehaviour
     [SerializeField] private LineRenderer rangeLineRenderer;
 
     [Header("Detection")]
-    [SerializeField] private float range = 10f;
-    [SerializeField] private float beamAngle = 120f;
+    [FormerlySerializedAs("range")]
+    [SerializeField] private float detectionRange = 10f;
+    [FormerlySerializedAs("beamAngle")]
+    [SerializeField] private float detectionAngle = 120f;
     [SerializeField] private float playerTargetHeight = 1f;
     [SerializeField] private LayerMask lineOfSightMask = ~0;
 
@@ -22,6 +25,8 @@ public class WatchtowerSearchLight : MonoBehaviour
     [SerializeField] private float inactiveDuration = 4f;
 
     [Header("Light")]
+    [SerializeField] private float lightRange = 30f;
+    [SerializeField] private float lightAngle = 120f;
     [SerializeField] private float lightIntensity = 8f;
 
     [Header("Visual")]
@@ -59,8 +64,10 @@ public class WatchtowerSearchLight : MonoBehaviour
 
     void OnValidate()
     {
-        range = Mathf.Max(0f, range);
-        beamAngle = Mathf.Clamp(beamAngle, 0f, 179f);
+        detectionRange = Mathf.Max(0f, detectionRange);
+        lightRange = Mathf.Max(0f, lightRange);
+        detectionAngle = Mathf.Clamp(detectionAngle, 0f, 179f);
+        lightAngle = Mathf.Clamp(lightAngle, 0f, 179f);
         activeDuration = Mathf.Max(0.01f, activeDuration);
         inactiveDuration = Mathf.Max(0.01f, inactiveDuration);
         lightIntensity = Mathf.Max(0f, lightIntensity);
@@ -95,7 +102,7 @@ public class WatchtowerSearchLight : MonoBehaviour
             return;
         }
 
-        PlayerMovement playerMovement = FindFirstObjectByType<PlayerMovement>();
+        PlayerMovement playerMovement = FindAnyObjectByType<PlayerMovement>();
         if (playerMovement != null)
         {
             player = playerMovement.transform;
@@ -141,13 +148,13 @@ public class WatchtowerSearchLight : MonoBehaviour
         Vector3 targetPosition = player.position + Vector3.up * playerTargetHeight;
         Vector3 directionToPlayer = targetPosition - originPosition;
 
-        if (directionToPlayer.magnitude > range)
+        if (directionToPlayer.magnitude > detectionRange)
         {
             return false;
         }
 
         float angleToPlayer = Vector3.Angle(visionOrigin.forward, directionToPlayer.normalized);
-        if (angleToPlayer > beamAngle * 0.5f)
+        if (angleToPlayer > detectionAngle * 0.5f)
         {
             return false;
         }
@@ -160,7 +167,7 @@ public class WatchtowerSearchLight : MonoBehaviour
         RaycastHit[] hits = Physics.RaycastAll(
             originPosition,
             directionToPlayer.normalized,
-            Mathf.Min(directionToPlayer.magnitude, range),
+            Mathf.Min(directionToPlayer.magnitude, detectionRange),
             lineOfSightMask,
             QueryTriggerInteraction.Ignore);
 
@@ -204,8 +211,8 @@ public class WatchtowerSearchLight : MonoBehaviour
         }
 
         searchLight.type = LightType.Spot;
-        searchLight.range = range;
-        searchLight.spotAngle = beamAngle;
+        searchLight.range = lightRange;
+        searchLight.spotAngle = lightAngle;
         searchLight.intensity = lightIntensity;
     }
 
@@ -305,12 +312,12 @@ public class WatchtowerSearchLight : MonoBehaviour
 
     private Vector3 GetEdgePoint(float normalizedIndex)
     {
-        float radius = Mathf.Tan(beamAngle * 0.5f * Mathf.Deg2Rad) * range;
+        float radius = Mathf.Tan(detectionAngle * 0.5f * Mathf.Deg2Rad) * detectionRange;
         float angle = normalizedIndex * Mathf.PI * 2f;
         Vector3 localEdgePoint = new Vector3(
             Mathf.Cos(angle) * radius,
             Mathf.Sin(angle) * radius,
-            range
+            detectionRange
         );
 
         Vector3 direction = visionOrigin.TransformDirection(localEdgePoint.normalized);
@@ -318,13 +325,13 @@ public class WatchtowerSearchLight : MonoBehaviour
         RaycastHit[] hits = Physics.RaycastAll(
             originPosition,
             direction,
-            range,
+            detectionRange,
             lineOfSightMask,
             QueryTriggerInteraction.Ignore);
 
         if (hits.Length == 0)
         {
-            return originPosition + direction * range;
+            return originPosition + direction * detectionRange;
         }
 
         System.Array.Sort(hits, (left, right) => left.distance.CompareTo(right.distance));
@@ -338,6 +345,6 @@ public class WatchtowerSearchLight : MonoBehaviour
             return hit.point;
         }
 
-        return originPosition + direction * range;
+        return originPosition + direction * detectionRange;
     }
 }
