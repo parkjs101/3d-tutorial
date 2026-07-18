@@ -125,6 +125,8 @@ namespace StarterAssets
 
         private void Awake()
         {
+            _controller = GetComponent<CharacterController>();
+
             // get a reference to our main camera
             if (_mainCamera == null)
             {
@@ -135,9 +137,8 @@ namespace StarterAssets
         private void Start()
         {
             _cinemachineTargetYaw = CinemachineCameraTarget.transform.rotation.eulerAngles.y;
-            
+
             _hasAnimator = TryGetComponent(out _animator);
-            _controller = GetComponent<CharacterController>();
             _input = GetComponent<StarterAssetsInputs>();
 #if ENABLE_INPUT_SYSTEM 
             _playerInput = GetComponent<PlayerInput>();
