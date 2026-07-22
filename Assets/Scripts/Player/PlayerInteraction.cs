@@ -56,7 +56,13 @@ public class PlayerInteraction : MonoBehaviour
             return false;
         }
 
-        ActiveBox.BeginPushPull();
+        ActiveBox.BeginPushPull(GetComponent<Rigidbody>());
+        if (!ActiveBox.IsHeld)
+        {
+            ActiveBox = null;
+            return false;
+        }
+
         return true;
     }
 
