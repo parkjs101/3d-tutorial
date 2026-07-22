@@ -8,6 +8,7 @@ public class PlayerAnimatorBridge : MonoBehaviour
     [SerializeField] private Rigidbody playerRigidbody;
     [SerializeField] private float walkSpeedThreshold = 0.05f;
     [SerializeField] private float rotationSharpness = 12f;
+    [SerializeField, Range(0f, 1f)] private float pushPullDirectionThreshold = 0.25f;
 
     private Transform visualRoot;
     private readonly HashSet<int> availableAnimatorParameters = new HashSet<int>();
@@ -19,6 +20,8 @@ public class PlayerAnimatorBridge : MonoBehaviour
     private static readonly int FreeFallHash = Animator.StringToHash("FreeFall");
     private static readonly int CrouchHash = Animator.StringToHash("Crouch");
     private static readonly int CrouchSpeedHash = Animator.StringToHash("CrouchSpeed");
+    private static readonly int PushPullHash = Animator.StringToHash("PushPull");
+    private static readonly int PushPullDirectionHash = Animator.StringToHash("PushPullDirection");
 
     void Awake()
     {
@@ -69,8 +72,33 @@ public class PlayerAnimatorBridge : MonoBehaviour
         SetBoolIfAvailable(FreeFallHash, state == PlayerState.Fall);
         SetBoolIfAvailable(CrouchHash, crouching);
         SetFloatIfAvailable(CrouchSpeedHash, crouchSpeed);
+        SetBoolIfAvailable(PushPullHash, state == PlayerState.PushPull);
+        SetFloatIfAvailable(PushPullDirectionHash, GetPushPullDirection(state));
 
-        RotateVisualTowardMovement();
+        if (state != PlayerState.PushPull)
+        {
+            RotateVisualTowardMovement();
+        }
+    }
+
+    private float GetPushPullDirection(PlayerState state)
+    {
+        if (state != PlayerState.PushPull || visualRoot == null)
+        {
+            return 0f;
+        }
+
+        Vector3 moveDirection = playerMovement.CurrentMoveDirection;
+        moveDirection.y = 0f;
+        if (moveDirection.sqrMagnitude <= 0.001f)
+        {
+            return 0f;
+        }
+
+        Vector3 facingDirection = visualRoot.forward;
+        facingDirection.y = 0f;
+        float direction = Vector3.Dot(moveDirection.normalized, facingDirection.normalized);
+        return Mathf.Abs(direction) >= pushPullDirectionThreshold ? direction : 0f;
     }
 
     private void CacheAnimatorParameters()
