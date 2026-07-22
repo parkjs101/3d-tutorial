@@ -21,7 +21,9 @@ public class WatchtowerSearchLight : MonoBehaviour
 
     [Header("Timing")]
     [SerializeField] private bool startsActive = true;
-    [SerializeField] private float activeDuration = 5f;
+    [SerializeField] private float minActiveDuration = 3f;
+    [FormerlySerializedAs("activeDuration")]
+    [SerializeField] private float maxActiveDuration = 5f;
     [SerializeField] private float inactiveDuration = 4f;
 
     [Header("Light")]
@@ -39,6 +41,7 @@ public class WatchtowerSearchLight : MonoBehaviour
     private bool isActive;
     private bool isResetting;
     private float stateTimer;
+    private float currentStateDuration;
     private Material rangeMaterial;
 
     void Awake()
@@ -68,7 +71,8 @@ public class WatchtowerSearchLight : MonoBehaviour
         lightRange = Mathf.Max(0f, lightRange);
         detectionAngle = Mathf.Clamp(detectionAngle, 0f, 179f);
         lightAngle = Mathf.Clamp(lightAngle, 0f, 179f);
-        activeDuration = Mathf.Max(0.01f, activeDuration);
+        minActiveDuration = Mathf.Max(0.01f, minActiveDuration);
+        maxActiveDuration = Mathf.Max(minActiveDuration, maxActiveDuration);
         inactiveDuration = Mathf.Max(0.01f, inactiveDuration);
         lightIntensity = Mathf.Max(0f, lightIntensity);
         edgeSampleCount = Mathf.Max(3, edgeSampleCount);
@@ -112,8 +116,7 @@ public class WatchtowerSearchLight : MonoBehaviour
     private void UpdateLightCycle()
     {
         stateTimer += Time.deltaTime;
-        float duration = isActive ? activeDuration : inactiveDuration;
-        if (stateTimer < duration)
+        if (stateTimer < currentStateDuration)
         {
             return;
         }
@@ -125,6 +128,9 @@ public class WatchtowerSearchLight : MonoBehaviour
     {
         isActive = active;
         stateTimer = 0f;
+        currentStateDuration = isActive
+            ? Random.Range(minActiveDuration, maxActiveDuration)
+            : inactiveDuration;
 
         if (searchLight != null)
         {
