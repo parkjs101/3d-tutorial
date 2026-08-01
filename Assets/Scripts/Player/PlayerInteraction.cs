@@ -4,6 +4,9 @@ public class PlayerInteraction : MonoBehaviour
 {
     [SerializeField] private float interactRadius = 1.8f;
 
+    private const string ThrowZoneName = "Throw Zone";
+    private const string ThrowTargetName = "Throw Target";
+
     private IInteractable highlightedInteractable;
 
     public PushPullBox ActiveBox { get; private set; }
@@ -38,8 +41,53 @@ public class PlayerInteraction : MonoBehaviour
             return false;
         }
 
+        if (TryReleaseHeldTire(player))
+        {
+            return true;
+        }
+
         IInteractable interactable = FindNearbyInteractable(player.transform.position);
         return interactable != null && interactable.Interact(player);
+    }
+
+    private bool TryReleaseHeldTire(PlayerMovement player)
+    {
+        TirePickup heldTire = TirePickup.HeldTire;
+        if (heldTire == null)
+        {
+            return false;
+        }
+
+        if (heldTire.IsLifting)
+        {
+            return true;
+        }
+
+        Collider throwZone = FindThrowZone(player);
+        if (throwZone != null)
+        {
+            Transform throwTarget = FindThrowTarget();
+            if (throwTarget != null)
+            {
+                heldTire.ThrowTo(throwTarget.position);
+            }
+            else
+            {
+                Debug.LogError($"Could not find '{ThrowTargetName}' in the active scene.", this);
+            }
+        }
+        else
+        {
+            heldTire.Drop();
+        }
+
+        return true;
+    }
+
+    private static Transform FindThrowTarget()
+    {
+        GameObject throwTarget = GameObject.Find(ThrowTargetName);
+        return throwTarget != null ? throwTarget.transform : null;
     }
 
     public bool TogglePushPull(Vector3 playerPosition)
@@ -124,6 +172,32 @@ public class PlayerInteraction : MonoBehaviour
         }
 
         return nearest;
+    }
+
+    private static Collider FindThrowZone(PlayerMovement player)
+    {
+        Collider playerCollider = player.GetComponent<Collider>();
+        if (playerCollider == null)
+        {
+            return null;
+        }
+
+        Bounds playerBounds = playerCollider.bounds;
+        Collider[] hits = Physics.OverlapSphere(
+            playerBounds.center,
+            playerBounds.extents.magnitude,
+            ~0,
+            QueryTriggerInteraction.Collide);
+        foreach (Collider hit in hits)
+        {
+            if (hit != null && hit.isTrigger && hit.name == ThrowZoneName &&
+                hit.bounds.Intersects(playerBounds))
+            {
+                return hit;
+            }
+        }
+
+        return null;
     }
 
     private IInteractable FindNearbyInteractable(Vector3 playerPosition)

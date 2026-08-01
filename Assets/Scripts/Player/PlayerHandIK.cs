@@ -18,6 +18,7 @@ public class PlayerHandIK : MonoBehaviour
     private Animator animator;
     private PlayerInteraction interaction;
     private PushPullBox resolvedBox;
+    private TirePickup resolvedTire;
     private Transform leftGrip;
     private Transform rightGrip;
     private Collider gripSurface;
@@ -31,12 +32,24 @@ public class PlayerHandIK : MonoBehaviour
 
     void Update()
     {
-        bool active = interaction != null && interaction.IsPushPulling;
+        TirePickup activeTire = TirePickup.HeldTire;
+        bool boxActive = interaction != null && interaction.IsPushPulling;
+        bool active = boxActive || activeTire != null;
         ikWeight = Mathf.MoveTowards(ikWeight, active ? 1f : 0f, blendSpeed * Time.deltaTime);
 
-        PushPullBox activeBox = active ? interaction.ActiveBox : null;
+        if (activeTire != resolvedTire)
+        {
+            resolvedTire = activeTire;
+            resolvedBox = null;
+            leftGrip = activeTire != null ? activeTire.LeftGrip : null;
+            rightGrip = activeTire != null ? activeTire.RightGrip : null;
+            gripSurface = null;
+        }
+
+        PushPullBox activeBox = boxActive && activeTire == null ? interaction.ActiveBox : null;
         if (activeBox != resolvedBox)
         {
+            resolvedTire = null;
             ResolveGripTargets(activeBox);
         }
     }
@@ -48,7 +61,7 @@ public class PlayerHandIK : MonoBehaviour
             return;
         }
 
-        if (ikWeight > 0f && leftGrip != null && rightGrip != null && gripSurface != null)
+        if (ikWeight > 0f && resolvedBox != null && leftGrip != null && rightGrip != null && gripSurface != null)
         {
             UpdateGripTargets();
         }

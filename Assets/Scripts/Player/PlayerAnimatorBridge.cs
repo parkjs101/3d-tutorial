@@ -22,6 +22,8 @@ public class PlayerAnimatorBridge : MonoBehaviour
     private static readonly int CrouchSpeedHash = Animator.StringToHash("CrouchSpeed");
     private static readonly int PushPullHash = Animator.StringToHash("PushPull");
     private static readonly int PushPullDirectionHash = Animator.StringToHash("PushPullDirection");
+    private static readonly int TireLiftHash = Animator.StringToHash("TireLift");
+    private static readonly int TireCarryHash = Animator.StringToHash("TireCarry");
 
     void Awake()
     {
@@ -74,6 +76,10 @@ public class PlayerAnimatorBridge : MonoBehaviour
         SetFloatIfAvailable(CrouchSpeedHash, crouchSpeed);
         SetBoolIfAvailable(PushPullHash, state == PlayerState.PushPull);
         SetFloatIfAvailable(PushPullDirectionHash, GetPushPullDirection(state));
+
+        TirePickup heldTire = TirePickup.HeldTire;
+        SetBoolIfAvailable(TireLiftHash, heldTire != null && heldTire.IsLifting);
+        SetBoolIfAvailable(TireCarryHash, heldTire != null && heldTire.IsCarrying);
 
         if (state != PlayerState.PushPull)
         {

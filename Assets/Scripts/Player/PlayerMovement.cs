@@ -90,6 +90,14 @@ public partial class PlayerMovement : MonoBehaviour
             interaction.UpdateHighlight(transform.position);
         }
 
+        if (TirePickup.HeldTire != null && TirePickup.HeldTire.IsLifting)
+        {
+            CurrentMoveDirection = Vector3.zero;
+            rb.linearVelocity = new Vector3(0f, rb.linearVelocity.y, 0f);
+            UpdateLocomotionState(isGrounded, Vector3.zero);
+            return;
+        }
+
         if (TryStartOrHandleLadderClimb())
         {
             return;
