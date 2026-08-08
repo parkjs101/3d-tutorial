@@ -224,7 +224,7 @@ public class PlayerInteraction : MonoBehaviour
                 continue;
             }
 
-            float distance = Vector3.Distance(playerPosition, hit.ClosestPoint(playerPosition));
+            float distance = GetDistanceToCollider(hit, playerPosition);
             if (distance < nearestDistance)
             {
                 nearest = interactable;
@@ -233,6 +233,16 @@ public class PlayerInteraction : MonoBehaviour
         }
 
         return nearest;
+    }
+
+    private static float GetDistanceToCollider(Collider targetCollider, Vector3 point)
+    {
+        if (targetCollider is MeshCollider meshCollider && !meshCollider.convex)
+        {
+            return Mathf.Sqrt(targetCollider.bounds.SqrDistance(point));
+        }
+
+        return Vector3.Distance(point, targetCollider.ClosestPoint(point));
     }
 
     private IInteractable FindInteractable(Collider hit)

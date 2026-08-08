@@ -19,6 +19,8 @@ public class PlayerHandIK : MonoBehaviour
     private PlayerInteraction interaction;
     private PushPullBox resolvedBox;
     private TirePickup resolvedTire;
+    private CandlePickup resolvedCandle;
+    private KnockDownInteractable resolvedKnockDown;
     private Transform leftGrip;
     private Transform rightGrip;
     private Collider gripSurface;
@@ -34,23 +36,59 @@ public class PlayerHandIK : MonoBehaviour
     {
         TirePickup activeTire = TirePickup.HeldTire;
         bool boxActive = interaction != null && interaction.IsPushPulling;
-        bool active = boxActive || activeTire != null;
+        CandlePickup activeCandle = CandlePickup.ReachingCandle;
+        KnockDownInteractable activeKnockDown = KnockDownInteractable.ActivePull;
+        bool active = boxActive || activeTire != null || activeCandle != null || activeKnockDown != null;
         ikWeight = Mathf.MoveTowards(ikWeight, active ? 1f : 0f, blendSpeed * Time.deltaTime);
 
         if (activeTire != resolvedTire)
         {
             resolvedTire = activeTire;
             resolvedBox = null;
+            resolvedCandle = null;
+            resolvedKnockDown = null;
             leftGrip = activeTire != null ? activeTire.LeftGrip : null;
             rightGrip = activeTire != null ? activeTire.RightGrip : null;
             gripSurface = null;
         }
 
-        PushPullBox activeBox = boxActive && activeTire == null ? interaction.ActiveBox : null;
+        PushPullBox activeBox = boxActive && activeTire == null && activeCandle == null && activeKnockDown == null
+            ? interaction.ActiveBox
+            : null;
         if (activeBox != resolvedBox)
         {
             resolvedTire = null;
+            resolvedCandle = null;
+            resolvedKnockDown = null;
             ResolveGripTargets(activeBox);
+        }
+
+        CandlePickup candle = activeTire == null && !boxActive && activeKnockDown == null
+            ? activeCandle
+            : null;
+        if (candle != resolvedCandle)
+        {
+            resolvedCandle = candle;
+            resolvedTire = null;
+            resolvedBox = null;
+            resolvedKnockDown = null;
+            leftGrip = null;
+            rightGrip = candle != null ? candle.HandIkTarget : null;
+            gripSurface = null;
+        }
+
+        KnockDownInteractable knockDown = activeTire == null && !boxActive && activeCandle == null
+            ? activeKnockDown
+            : null;
+        if (knockDown != resolvedKnockDown)
+        {
+            resolvedKnockDown = knockDown;
+            resolvedTire = null;
+            resolvedBox = null;
+            resolvedCandle = null;
+            leftGrip = knockDown != null ? knockDown.GripPoint : null;
+            rightGrip = knockDown != null ? knockDown.GripPoint : null;
+            gripSurface = null;
         }
     }
 
@@ -66,8 +104,22 @@ public class PlayerHandIK : MonoBehaviour
             UpdateGripTargets();
         }
 
+        if (resolvedKnockDown != null)
+        {
+            ApplyKnockDownHandIK();
+            return;
+        }
+
         ApplyHandIK(AvatarIKGoal.LeftHand, leftGrip, leftHandEulerOffset);
-        ApplyHandIK(AvatarIKGoal.RightHand, rightGrip, rightHandEulerOffset);
+        if (resolvedCandle != null && resolvedCandle.IsPlacing)
+        {
+            ApplyHandIK(AvatarIKGoal.RightHand, rightGrip, resolvedCandle.HandIkRotation);
+        }
+        else
+        {
+            Vector3 activeRightHandOffset = resolvedCandle != null ? Vector3.zero : rightHandEulerOffset;
+            ApplyHandIK(AvatarIKGoal.RightHand, rightGrip, activeRightHandOffset);
+        }
     }
 
     private void ResolveGripTargets(PushPullBox activeBox)
@@ -164,5 +216,50 @@ public class PlayerHandIK : MonoBehaviour
 
         animator.SetIKPosition(hand, target.position);
         animator.SetIKRotation(hand, target.rotation * Quaternion.Euler(eulerOffset));
+    }
+
+    private void ApplyHandIK(AvatarIKGoal hand, Transform target, Quaternion targetRotation)
+    {
+        float weight = target != null ? ikWeight : 0f;
+        animator.SetIKPositionWeight(hand, weight);
+        animator.SetIKRotationWeight(hand, weight);
+
+        if (target != null)
+        {
+            animator.SetIKPosition(hand, target.position);
+            animator.SetIKRotation(hand, targetRotation);
+        }
+    }
+
+    private void ApplyKnockDownHandIK()
+    {
+        Transform gripPoint = resolvedKnockDown.GripPoint;
+        if (gripPoint == null)
+        {
+            return;
+        }
+
+        float halfSpacing = resolvedKnockDown.HandSpacing * 0.5f;
+        Quaternion leftRotation = gripPoint.rotation *
+                                  Quaternion.Euler(resolvedKnockDown.LeftHandEulerAngles);
+        Quaternion rightRotation = gripPoint.rotation *
+                                   Quaternion.Euler(resolvedKnockDown.RightHandEulerAngles);
+
+        ApplyHandIK(
+            AvatarIKGoal.LeftHand,
+            gripPoint.position - gripPoint.right * halfSpacing,
+            leftRotation);
+        ApplyHandIK(
+            AvatarIKGoal.RightHand,
+            gripPoint.position + gripPoint.right * halfSpacing,
+            rightRotation);
+    }
+
+    private void ApplyHandIK(AvatarIKGoal hand, Vector3 position, Quaternion rotation)
+    {
+        animator.SetIKPositionWeight(hand, ikWeight);
+        animator.SetIKRotationWeight(hand, ikWeight);
+        animator.SetIKPosition(hand, position);
+        animator.SetIKRotation(hand, rotation);
     }
 }
