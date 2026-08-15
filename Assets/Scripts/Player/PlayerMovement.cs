@@ -91,7 +91,8 @@ public partial class PlayerMovement : MonoBehaviour
         }
 
         bool tireIsLifting = TirePickup.HeldTire != null && TirePickup.HeldTire.IsLifting;
-        if (tireIsLifting || CandlePickup.IsTransitioning || KnockDownInteractable.IsAnyPulling)
+        if (tireIsLifting || CandlePickup.IsTransitioning || KnockDownInteractable.IsAnyPulling ||
+            BreakablePunchInteractable.IsAnyPunching)
         {
             CurrentMoveDirection = Vector3.zero;
             rb.linearVelocity = new Vector3(0f, rb.linearVelocity.y, 0f);

@@ -11,6 +11,9 @@ public class PlayerAnimatorBridge : MonoBehaviour
     [SerializeField, Range(0f, 1f)] private float pushPullDirectionThreshold = 0.25f;
 
     private Transform visualRoot;
+    private bool hasForcedFacingDirection;
+    private Vector3 forcedFacingDirection;
+    private float forcedFacingSharpness;
     private readonly HashSet<int> availableAnimatorParameters = new HashSet<int>();
 
     private static readonly int SpeedHash = Animator.StringToHash("Speed");
@@ -81,10 +84,44 @@ public class PlayerAnimatorBridge : MonoBehaviour
         SetBoolIfAvailable(TireLiftHash, heldTire != null && heldTire.IsLifting);
         SetBoolIfAvailable(TireCarryHash, heldTire != null && heldTire.IsCarrying);
 
-        if (state != PlayerState.PushPull)
+        if (hasForcedFacingDirection)
+        {
+            RotateVisualToward(forcedFacingDirection, forcedFacingSharpness);
+        }
+        else if (state != PlayerState.PushPull)
         {
             RotateVisualTowardMovement();
         }
+    }
+
+    public void SetForcedFacingDirection(Vector3 worldDirection, float sharpness)
+    {
+        worldDirection.y = 0f;
+        if (worldDirection.sqrMagnitude <= 0.001f)
+        {
+            return;
+        }
+
+        hasForcedFacingDirection = true;
+        forcedFacingDirection = worldDirection.normalized;
+        forcedFacingSharpness = Mathf.Max(0.01f, sharpness);
+    }
+
+    public void ClearForcedFacingDirection()
+    {
+        hasForcedFacingDirection = false;
+    }
+
+    public bool IsFacingDirection(Vector3 worldDirection, float toleranceDegrees)
+    {
+        if (visualRoot == null)
+        {
+            return true;
+        }
+
+        worldDirection.y = 0f;
+        return worldDirection.sqrMagnitude <= 0.001f ||
+               Vector3.Angle(visualRoot.forward, worldDirection.normalized) <= toleranceDegrees;
     }
 
     private float GetPushPullDirection(PlayerState state)
@@ -157,21 +194,20 @@ public class PlayerAnimatorBridge : MonoBehaviour
 
     private void RotateVisualTowardMovement()
     {
-        if (visualRoot == null)
-        {
-            return;
-        }
-
         Vector3 moveDirection = playerMovement.CurrentMoveDirection;
         moveDirection.y = 0f;
+        RotateVisualToward(moveDirection, rotationSharpness);
+    }
 
-        if (moveDirection.sqrMagnitude <= 0.001f)
+    private void RotateVisualToward(Vector3 worldDirection, float sharpness)
+    {
+        if (visualRoot == null || worldDirection.sqrMagnitude <= 0.001f)
         {
             return;
         }
 
-        Quaternion targetRotation = Quaternion.LookRotation(moveDirection.normalized, Vector3.up);
-        float rotateT = 1f - Mathf.Exp(-rotationSharpness * Time.deltaTime);
+        Quaternion targetRotation = Quaternion.LookRotation(worldDirection.normalized, Vector3.up);
+        float rotateT = 1f - Mathf.Exp(-sharpness * Time.deltaTime);
         visualRoot.rotation = Quaternion.Slerp(visualRoot.rotation, targetRotation, rotateT);
     }
 }
